@@ -1,0 +1,16 @@
+# Tested with Python 3.11
+
+# Last tested with version4.15.0
+beautifulsoup4
+
+# Last tested with version3.1.3
+Flask
+
+# Last tested with version2.30.0
+openai
+
+# Last tested with version2.33.1
+requests
+
+# Last tested with version3.0.2
+waitress
