@@ -1,0 +1,25 @@
+I am creating a skeleton for a journal article for topic of research “how to catch mosquitoes with chopsticks”. Give me Title, headings and sub-headings. Follow system prompt for syntax
+
+A short conceptual overview paragraph that weaves in bold text for critical metrics, italicized text for structural conditions, and bold-italicized text for emergency highlights.
+
+Provide a single mathematical formula using standard inline LaTeX inside a sentence, and a standalone equation block for a big equation in a separate line. Equations related to short time Fourier transform. Then in the next short paragraph, explain the variables, constants in the block equation. 
+
+Include code function of python for calculating volume of sphere then followed by a short paragraph mentioning the variable names with inline code snippets. Do not give example usage for code.
+
+Provide table for 3 methods for cooking chicken with its explanation, advantage and disadvantages
+
+Give me 5 famous search engine names with links as a list then followed by Give me name of 5 famous fastfood chains in America in a paragraph
+
+Explain the relationship between pressure, temperature, and volume in thermodynamics. Use the formula PV = nRT and provide a table comparing Ideal vs. Real gases. Include a code snippet in Python that uses the 'try-except' block to handle a division-by-zero error.
+
+Write a paragraph about cybersecurity. Use code snippets inside bolded sections, and include italicized notes about emergency security breaches in the middle of a code block.
+
+Provide a complex matrix equation involving a summation and a fraction in LaTeX block mode:$$\mathbf{A} = \sum_{i=1}^{n} \frac{\alpha_i}{\beta_i + \gamma}$$Explain the equation.
+
+Create a table for a Project Schedule with columns: Phase, Task, Duration (Days), and Notes. Include a row where the 'Notes' cell is intentionally left blank.
+
+Write a 1,000-word history of the development of the internal combustion engine. Include 5 headers, 3 tables, and 10 inline LaTeX math expressions throughout the text.
+
+According to system prompt rules, You generate examples with all formatting (link, table, bullets, heading, equation etc, all) so I can test in word if everything is being formatted properly.
+
+Perform a comprehensive structural analysis. Begin with a main header. Then, create a two-column table. The first column should contain a complex inline LaTeX equation like $f(x) = \sum_{n=0}^{\infty} \frac{f^{(n)}(a)}{n!}(x-a)^n$, and the second column should contain a bolded term with an italicized definition. After the table, provide a block equation for the Schrödinger equation:$$\hat{H}\Psi = E\Psi$$. Follow this with a multi-line Python code block that demonstrates a class structure with a method that includes a 'try-except' block. Finally, create a numbered list of 3 steps for "Optimization Strategies," where the second item contains an inline code snippet.

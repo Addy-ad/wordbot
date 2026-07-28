@@ -103,7 +103,7 @@
             imageMso="CircularReferences" 
             size="large" 
             screentip="Convert Citations" 
-            supertip="Convert unprocessed [ref_num: SOURCE REFERENCE ID, zotero_itemKey: XXXXXXXX] citations to a proper word citations" />
+            supertip="Convert unprocessed 'zotero://XXXXXXXX' tags to a proper word citations" />
           <button 
             id="btnUpdateCitations" 
             label="Update Citations" 

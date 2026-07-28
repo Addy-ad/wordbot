@@ -1,84 +1,130 @@
 Public Sub ConvertCodeBlocks(targetRange As Range)
-    Dim foundRange As Range
+    Dim originalText As String
+    Dim lines As Variant
+    Dim resultLines As String
+    Dim i As Long
+    Dim inCodeBlock As Boolean
     Dim codeContent As String
-    Dim langPos As Long
-    Dim endOfFirstLine As Long
     Dim para As Paragraph
-    Dim searchPatterns(1) As String
-    Dim i As Integer
+    Dim codeRanges As Collection
+    Dim rng As Range
     
-    ' Match triple backticks with optional language specifier
-    searchPatterns(0) = "```[!^13]@^13(*[!`]@)```"
-    searchPatterns(1) = "```^13(*[!`]@)```"
+    ' Turn off screen updating
+    Dim oldScreenUpdating As Boolean
+    oldScreenUpdating = Application.ScreenUpdating
+    Application.ScreenUpdating = False
     
-    For i = 0 To 1
-        Set foundRange = targetRange.Duplicate
+    On Error GoTo Cleanup
+    
+    ' Get the text
+    originalText = targetRange.text
+    
+    ' Split into lines
+    lines = Split(originalText, vbCr)
+    inCodeBlock = False
+    codeContent = ""
+    resultLines = ""
+    
+    ' Process line by line
+    For i = LBound(lines) To UBound(lines)
+        Dim line As String
+        Dim trimmedLine As String
         
-        With foundRange.Find
-            .ClearFormatting
-            .text = searchPatterns(i)
-            .MatchWildcards = True
-            .Forward = True
-            .Wrap = wdFindStop
+        line = lines(i)
+        trimmedLine = Trim(line)
+        
+        If Not inCodeBlock And Left(trimmedLine, 3) = "```" Then
+            ' Start of code block
+            inCodeBlock = True
+            codeContent = ""
+            ' Don't add the opening line to output
+        ElseIf inCodeBlock And trimmedLine = "```" Then
+            ' End of code block
+            inCodeBlock = False
             
-            While .Execute
-                ' Extract the code content (everything between the backticks)
-                codeContent = foundRange.text
-                
-                ' Remove the opening triple backticks and language specifier
-                ' Find the end of the first line (after the language specifier)
-                endOfFirstLine = InStr(codeContent, vbCr)
-                If endOfFirstLine = 0 Then endOfFirstLine = InStr(codeContent, vbLf)
-                
-                If endOfFirstLine > 0 Then
-                    ' Remove the first line (```python or ```)
-                    codeContent = Mid(codeContent, endOfFirstLine + 1)
-                Else
-                    ' Fallback: just remove the first 3 characters
-                    codeContent = Mid(codeContent, 4)
-                End If
-                
-                ' Remove the trailing triple backticks
-                If Right(codeContent, 3) = "```" Then
-                    codeContent = Left(codeContent, Len(codeContent) - 3)
-                End If
-                
-                ' Clean up: remove any leading/trailing blank lines
-                codeContent = Trim(codeContent)
-                
-                ' Replace the found range with the cleaned code
-                foundRange.text = codeContent
-                
-                ' Apply code formatting
-                With foundRange.Font
-                    .Name = "Consolas"
-                    .Size = 10
-                End With
-                
-                ' Apply shading and borders to each paragraph in the code block
-                For Each para In foundRange.Paragraphs
-                    With para
-                        ' Add a light gray background
-                        .Shading.BackgroundPatternColor = wdColorGray10
-                        ' Add a thin border
-                        .Borders(wdBorderTop).LineStyle = wdLineStyleSingle
-                        .Borders(wdBorderBottom).LineStyle = wdLineStyleSingle
-                        .Borders(wdBorderLeft).LineStyle = wdLineStyleSingle
-                        .Borders(wdBorderRight).LineStyle = wdLineStyleSingle
-                        ' Single line spacing for code
-                        .LineSpacingRule = wdLineSpaceSingle
-                        ' Add some padding
-                        .LeftIndent = InchesToPoints(0.1)
-                        .RightIndent = InchesToPoints(0.1)
-                        .SpaceBefore = 3
-                        .SpaceAfter = 3
-                    End With
-                Next para
-                
-                ' Collapse to continue searching
-                foundRange.Collapse wdCollapseEnd
-                foundRange.End = targetRange.End
-            Wend
-        End With
+            ' Add the code block with a unique marker
+            If Len(codeContent) > 0 Then
+                ' Replace newlines in code with a placeholder
+                resultLines = resultLines & "%%CODEBLOCK%%" & codeContent & "%%ENDCODEBLOCK%%"
+            End If
+            ' Add a newline after the code block
+            resultLines = resultLines & vbCr
+        ElseIf inCodeBlock Then
+            ' Inside code block
+            codeContent = codeContent & line & vbCr
+        Else
+            ' Regular text
+            resultLines = resultLines & line & vbCr
+        End If
     Next i
+    
+    ' Handle unclosed code block
+    If inCodeBlock And Len(codeContent) > 0 Then
+        resultLines = resultLines & "%%CODEBLOCK%%" & codeContent & "%%ENDCODEBLOCK%%" & vbCr
+    End If
+    
+    ' Replace the content
+    targetRange.text = resultLines
+    
+    ' Now find and format code blocks
+    Dim searchRange As Range
+    Set searchRange = targetRange.Duplicate
+    
+    With searchRange.Find
+        .ClearFormatting
+        .text = "%%CODEBLOCK%%*%%ENDCODEBLOCK%%"
+        .MatchWildcards = True
+        .Wrap = wdFindStop
+        
+        While .Execute
+            Dim codeBlockRange As Range
+            Set codeBlockRange = searchRange.Duplicate
+            
+            ' Extract the code
+            Dim codeText As String
+            codeText = codeBlockRange.text
+            codeText = Replace(codeText, "%%CODEBLOCK%%", "")
+            codeText = Replace(codeText, "%%ENDCODEBLOCK%%", "")
+            
+            ' Replace with code
+            codeBlockRange.text = codeText
+            
+            ' Format the code
+            Dim formatRange As Range
+            Set formatRange = codeBlockRange.Duplicate
+            
+            ' Expand to the paragraph
+            formatRange.Expand Unit:=wdParagraph
+            
+            ' Apply formatting
+            With formatRange.Font
+                .Name = "Consolas"
+                .Size = 10
+            End With
+            
+            ' Apply shading and borders
+            For Each para In formatRange.Paragraphs
+                With para
+                    .Shading.BackgroundPatternColor = wdColorGray10
+                    .Borders(wdBorderTop).LineStyle = wdLineStyleSingle
+                    .Borders(wdBorderBottom).LineStyle = wdLineStyleSingle
+                    .Borders(wdBorderLeft).LineStyle = wdLineStyleSingle
+                    .Borders(wdBorderRight).LineStyle = wdLineStyleSingle
+                    .LineSpacingRule = wdLineSpaceSingle
+                    .LeftIndent = InchesToPoints(0.1)
+                    .RightIndent = InchesToPoints(0.1)
+                    .SpaceBefore = 3
+                    .SpaceAfter = 3
+                End With
+            Next para
+            
+            ' Move to next
+            searchRange.Collapse wdCollapseEnd
+            searchRange.End = targetRange.End
+        Wend
+    End With
+
+Cleanup:
+    Application.ScreenUpdating = oldScreenUpdating
+    Application.StatusBar = "Code blocks conversion complete"
 End Sub
