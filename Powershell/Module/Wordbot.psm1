@@ -590,7 +590,7 @@ function Import-VBAComponents {
                         }
                         
                         $tempFile = [System.IO.Path]::GetTempFileName()
-                        Set-Content -Path $tempFile -Value $updated -NoNewline -Encoding UTF8
+                        [System.IO.File]::WriteAllText($tempFile, $updated, [System.Text.UTF8Encoding]::new($false))
                         $null = $project.VBComponents.Import($tempFile)
                         Remove-Item $tempFile -Force
                         Write-Host "    + Configured Python executable and server path in $($file.Name)" -ForegroundColor Green
@@ -604,7 +604,7 @@ function Import-VBAComponents {
                     $newContent = "Attribute VB_Name = `"$name`"`r`n$content"
                     # Write modified content to temporary file and import
                     $tempFile = [System.IO.Path]::GetTempFileName()
-                    Set-Content -Path $tempFile -Value $newContent -NoNewline
+                    [System.IO.File]::WriteAllText($tempFile, $newContent, [System.Text.UTF8Encoding]::new($false))
                     $null = $project.VBComponents.Import($tempFile)
                     Remove-Item $tempFile -Force
                 } else {

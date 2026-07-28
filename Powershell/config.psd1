@@ -14,7 +14,7 @@
     # Target save directory (absolute path) for the output file:
     #   - Leave empty ('') to automatically target Word's default STARTUP folder
     #   - Or specify an absolute folder path (e.g., 'D:\Worddocs')
-    outputPath               = 'O:\OneDrive\Documents\AI stuff\bots\wordbot\Wordbot\Powershell\build'
+    outputPath               = ''
     
     # Relative paths (resolved against the location of installWordBotTemplate.ps1):
     # Directory containing raw VBA source modules (.bas, .cls, .frm)

@@ -11,33 +11,40 @@ Public Sub AutoExit()
 End Sub
 
 Public Sub BindUnbindWrapper(ByVal Action As Long)
-    Dim dictBindings As New Dictionary
-    Dim key As Variant
+    Dim bindings As Variant
+    Dim i As Long
+    Dim keyCode As Long
+    Dim macroName As String
     Dim kb As KeyBinding
-    Dim bindingArray As Variant
+    Dim categoryName As String
     
-    dictBindings.Add BuildKeyCode(wdKeyAlt, wdKeyR), Array("Alt+R", "Ribbon_Run")
-    dictBindings.Add BuildKeyCode(wdKeyAlt, wdKeyE), Array("Alt+E", "Ribbon_Expand")
-    dictBindings.Add BuildKeyCode(wdKeyAlt, wdKeyS), Array("Alt+S", "Ribbon_Summarize")
-    dictBindings.Add BuildKeyCode(wdKeyAlt, wdKeyF), Array("Alt+F", "Ribbon_FixGrammar")
-    dictBindings.Add BuildKeyCode(wdKeyAlt, wdKeyT), Array("Alt+T", "Ribbon_Translate")
-    dictBindings.Add BuildKeyCode(wdKeyAlt, wdKeyD), Array("Alt+D", "Ribbon_Define")
-    dictBindings.Add BuildKeyCode(wdKeyAlt, wdKeyC), Array("Alt+C", "Ribbon_Custom")
-    dictBindings.Add BuildKeyCode(wdKeyAlt, wdKeyZ), Array("Alt+Z", "Ribbon_wordbotResearch")
+    ' Define all keyboard shortcuts: [keyCode, macroName]
+    bindings = Array( _
+        Array(BuildKeyCode(wdKeyAlt, wdKeyR), "Ribbon_Run"), _
+        Array(BuildKeyCode(wdKeyAlt, wdKeyE), "Ribbon_Expand"), _
+        Array(BuildKeyCode(wdKeyAlt, wdKeyS), "Ribbon_Summarize"), _
+        Array(BuildKeyCode(wdKeyAlt, wdKeyF), "Ribbon_FixGrammar"), _
+        Array(BuildKeyCode(wdKeyAlt, wdKeyT), "Ribbon_Translate"), _
+        Array(BuildKeyCode(wdKeyAlt, wdKeyD), "Ribbon_Define"), _
+        Array(BuildKeyCode(wdKeyAlt, wdKeyC), "Ribbon_Custom"), _
+        Array(BuildKeyCode(wdKeyAlt, wdKeyZ), "Ribbon_wordbotResearch") _
+    )
     
     On Error Resume Next
     
-    If Action = 1 Then 
+    If Action = 1 Then
         CustomizationContext = ThisDocument
     End If
     
-    For Each key In dictBindings.Keys
-        Set kb = FindKey(CLng(key))
+    For i = LBound(bindings) To UBound(bindings)
+        keyCode = CLng(bindings(i)(0))
+        macroName = CStr(bindings(i)(1))
         
-        ' ' --- 1. ALWAYS INSPECT / CLEAR FIRST ---
+        Set kb = FindKey(keyCode)
+        
+        ' ' Check for conflicts - if key is assigned to something else, warn user
         ' If kb.Command <> "" Then
-        '     ' Check if assigned to something OTHER than our WordBot command
-        '     If kb.Command <> wbCommands(i) Then
+        '     If kb.Command <> macroName Then
         '         Select Case kb.KeyCategory
         '             Case wdKeyCategoryMacro: categoryName = "Macro"
         '             Case wdKeyCategoryCommand: categoryName = "Built-in Word Command"
@@ -48,25 +55,39 @@ Public Sub BindUnbindWrapper(ByVal Action As Long)
         '             Case Else: categoryName = "Custom Category (" & kb.KeyCategory & ")"
         '         End Select
                 
-        '         MsgBox keyNames(i) & " is currently assigned to:" & vbCrLf & _
-        '                "• Type: " & categoryName & vbCrLf & _
-        '                "• Target: " & kb.Command & vbCrLf & vbCrLf & _
+        '         MsgBox "Conflict detected for " & GetKeyName(keyCode) & ":" & vbCrLf & _
+        '                "Currently assigned to: " & kb.Command & " (" & categoryName & ")" & vbCrLf & vbCrLf & _
         '                "Clearing existing binding.", _
         '                vbInformation, "Keybinding Conflict"
         '     End If
         ' End If
         
-        ' Clear existing binding regardless of mode
+        ' Clear existing binding
         kb.Clear
         
+        ' Bind if Action = 1
         If Action = 1 Then
-            bindingArray = dictBindings(key)
             KeyBindings.Add KeyCategory:=wdKeyCategoryMacro, _
-                            Command:=bindingArray(LBound(bindingArray) + 1), _
-                            KeyCode:=CLng(key)
+                            Command:=macroName, _
+                            KeyCode:=keyCode
         End If
-    Next key
+    Next i
     
     ThisDocument.Saved = True
     On Error GoTo 0
 End Sub
+
+' Helper function to get readable key names
+Private Function GetKeyName(ByVal keyCode As Long) As String
+    Select Case keyCode
+        Case BuildKeyCode(wdKeyAlt, wdKeyR): GetKeyName = "Alt+R"
+        Case BuildKeyCode(wdKeyAlt, wdKeyE): GetKeyName = "Alt+E"
+        Case BuildKeyCode(wdKeyAlt, wdKeyS): GetKeyName = "Alt+S"
+        Case BuildKeyCode(wdKeyAlt, wdKeyF): GetKeyName = "Alt+F"
+        Case BuildKeyCode(wdKeyAlt, wdKeyT): GetKeyName = "Alt+T"
+        Case BuildKeyCode(wdKeyAlt, wdKeyD): GetKeyName = "Alt+D"
+        Case BuildKeyCode(wdKeyAlt, wdKeyC): GetKeyName = "Alt+C"
+        Case BuildKeyCode(wdKeyAlt, wdKeyZ): GetKeyName = "Alt+Z"
+        Case Else: GetKeyName = "Key " & keyCode
+    End Select
+End Function
