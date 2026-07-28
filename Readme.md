@@ -46,9 +46,9 @@ Example of overall formatting capabilities
 
 ## Try Markdown conversion yourself
 
-I have added `ExampleContentMarkdown.md` so you can compare how Markdown formats on GitHub versus how it looks in Word after pasting the content and clicking the **Format Markdown** button.
+I have added [ExampleContentMarkdown.md](Extras/ExampleContentMarkdown.md) so you can compare how Markdown formats on GitHub versus how it looks in Word after pasting the content and clicking the **Format Markdown** button.
 
-Additionally, I have some provided some test prompts ([Test prompts.txt](Extras\TestPrompts.txt)). So, when you open word, You can run these test prompts to your local LLM and you cna get familiar what kind of requests you can make
+Additionally, I have some provided some test prompts ([Test prompts.txt](Extras/TestPrompts.txt)). So, when you open word, You can run these test prompts to your local LLM and you cna get familiar what kind of requests you can make
 
 ## Flowchart
 
@@ -183,7 +183,7 @@ Wordbot was developed and tested using the following software versions and confi
 
 ### Path A: Standard Installation (Windows & macOS)
 
-For regular use, simply download the pre-compiled Wordbot template `Wordbot.dotm` under ([Powershell\build\Wordbot.dotm](Powershell\build\Wordbot.dotm)). No PowerShell scripts or Word security modifications are required.
+For regular use, simply download the pre-compiled Wordbot template `Wordbot.dotm` under ([Powershell\build\Wordbot.dotm](Powershell/build/Wordbot.dotm)). No PowerShell scripts or Word security modifications are required.
 
 * **Microsoft Word:** Compatible with Word on Windows (Office 2016 and Office 365) and macOS.
   * Simply place `Wordbot.dotm` into Word's `STARTUP` folder so it loads automatically on launch:
