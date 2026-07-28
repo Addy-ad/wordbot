@@ -31,7 +31,7 @@ Wordbot is an evolving project. Future updates will focus on deeper autonomous r
 
 x3.5 speed due to file size restriction. But everytime I press run button to ask local AI model with no zotero library context/ So, it gives generic responses. For the last query, I do the semantic search on zotero library and it brings up context with inline citations. Which I can format to any citation formats and add bibliography at the end using Zotero.
 
-<video controls src="Extras/Media/WordbotDemo_1min.mp4" title="Title"></video>
+https://github.com/user-attachments/assets/7c6b6159-4123-4f16-9c4d-8c9638e9a323
 
 ## Examples using Wordbot 
 Example of zotero-research result with inline citations and bibliography IEEE style:
