@@ -1,51 +1,66 @@
 Wordbot/
-│   projectTree.txt
-│   Readme.md
+│   LICENSE                                            # License file
+│   projectTree.txt                                    # Project structure reference
+│   Readme.md                                          # Main documentation and user guide
+│
+├───Extras
+│   │   ExampleContentMarkdown.md                      # Sample markdown content for testing
+│   │   TestPrompts.txt                                # Collection of test prompts for LLM workflows
+│   │
+│   └───Media                                          # Image assets and demo video for Readme.md
+│           FormatMarkdownButton.png                   # Screenshot: Markdown formatting button
+│           HeadingNumberButton.png                    # Screenshot: Heading numbering button
+│           HeadingNumbers.png                         # Screenshot: Auto-numbered headings
+│           LLMButtons.png                             # Screenshot: LLM request buttons
+│           ManualButtons.png                          # Screenshot: Manual formatting controls
+│           StartPythonBackend.png                     # Screenshot: Backend server start button
+│           UpdateCitations.png                        # Screenshot: Citation update button
+│           WordbotDemo.mp4                            # Demo video of Wordbot in action
+│           ZoteroResearch.png                         # Screenshot: Zotero research panel
 │
 ├───Powershell
-│   │   config.psd1                                     # PowerShell module configuration & settings
-│   │   docLiveUpdateMacros.ps1                         # Script to update VBA macros to open Word template
-│   │   installWordBotTemplate.ps1                      # Installation script for Word template deployment
-│   │   Run_docLiveUpdateMacros.vbs                     # Silent VBS launcher for running docLiveUpdateMacros.ps1
-│   │   Run_installWordBotTemplate.vbs                  # Silent VBS launcher for running installWordBotTemplate.ps1
-│   │   Readme.md                                       # Readme.md for how to use the powershell scripts to create dotm programatically
+│   │   config.psd1                                    # PowerShell module configuration and settings
+│   │   docLiveUpdateMacros.ps1                        # Updates VBA macros in the open Word template
+│   │   installWordBotTemplate.ps1                     # Main installation script for Word template deployment
+│   │   Readme.md                                      # PowerShell script usage documentation
+│   │   Run_docLiveUpdateMacros.vbs                    # Silent VBS launcher for docLiveUpdateMacros.ps1
+│   │   Run_installWordBotTemplate.vbs                 # Silent VBS launcher for installWordBotTemplate.ps1
 │   │
 │   ├───build
-│   │       Wordbot.dotm
+│   │       Wordbot.dotm                               # Precompiled Word template (.dotm) for manual install
 │   │
 │   ├───Module
-│   │       Wordbot.psm1                                # PowerShell module entry point for setup and management
+│   │       Wordbot.psm1                               # PowerShell module entry point for setup and management
 │   │
 │   └───Resources
-│       │   WordbotRibbon.xml                            # Custom Office Ribbon XML definition for Wordbot
+│       │   WordbotRibbon.xml                          # Custom Office Ribbon XML definition for Wordbot UI
 │       │
-│       └───WordVBAmacros                               # Implemented VBA Modules & Classes for Wordbot
-│               aPythonTask.bas                         # To communicate with Python server for LLM and Zotseek (Zotero Plugin)
-│               aWordbotJsonParser.bas                  # Small custom JSON parsing for API responses
-│               aWordbotRibbonBindkeys.bas              # Keyboard shortcut bindings for Wordbot plugin
-│               aWordbotRibbonBtnCallbacksXML.bas       # Ribbon UI callback functions
-│               aWordbotRibbonBtnFunctions.bas          # Button execution logic
-│               aWordbot_Main.bas                       # General LLM workflow
-│               aWordbot_Research.bas                   # Research workflow with Zotseek
-│               aWordbot_ResearchCitation.bas           # Citation and reference injection
-│               Dictionary.cls                          # Ion Cristian Buse Dictionary class implementation for VBA (https://github.com/cristianbuse/VBA-FastDictionary)
-│               MarkdownCleanup.bas                     # Text cleanup & whitespace normalization
-│               MarkdownCodeblock.bas                   # Code block formatting & styling
-│               MarkdownHeadersStyle.bas                # Heading hierarchy styling (H1-H6)
-│               MarkdownLatex.bas                       # LaTeX math formula rendering
-│               MarkdownLinks.bas                       # Hyperlink insertion and formatting
-│               MarkdownListBullet.bas                  # Bulleted and numbered list formatting
-│               MarkdownTable.bas                       # Table generation & layout
-│               MarkdownTextStyle.bas                   # Bold, italic, strikethrough styling
-│               MarkdownUnicode.bas                     # Special character & symbol handling
-│               Markdown_Main.bas                       # Main Markdown parsing pipeline engine
+│       └───WordVBAmacros                              # VBA modules powering Wordbot functionality
+│               aPythonTask.bas                        # Communicates with Python server for LLM and Zotseek
+│               aWordbotJsonParser.bas                 # Lightweight JSON parser for API responses
+│               aWordbotRibbonBindkeys.bas             # Keyboard shortcut bindings
+│               aWordbotRibbonBtnCallbacksXML.bas      # Ribbon UI callback functions
+│               aWordbotRibbonBtnFunctions.bas         # Button execution logic
+│               aWordbot_Main.bas                      # Main LLM workflow: send requests, receive responses
+│               aWordbot_Research.bas                  # Research workflow: search Zotero via Zotseek
+│               aWordbot_ResearchCitation.bas          # Citation and reference injection from Zotero
+│               MarkdownCleanup.bas                    # Text cleanup and whitespace normalization
+│               MarkdownCodeblock.bas                  # Code block formatting and syntax styling
+│               MarkdownHeadersStyle.bas               # Heading hierarchy styling (H1 through H6)
+│               MarkdownLatex.bas                      # LaTeX math formula rendering to Word equations
+│               MarkdownLinks.bas                      # Hyperlink insertion and formatting
+│               MarkdownListBullet.bas                 # Bulleted and numbered list formatting
+│               MarkdownTable.bas                      # Table generation and Word layout
+│               MarkdownTextStyle.bas                  # Bold, italic, strikethrough styling
+│               MarkdownUnicode.bas                    # Special character and symbol handling
+│               Markdown_Main.bas                      # Main Markdown parsing and conversion pipeline
 │
-└───PythonServer                                        # Local AI Backend Server (for GET/POST calls)
-    │   main.py                                         # Server entry point & routes registration
+└───PythonServer                                        # Local Flask backend for LLM and Zotero operations
+    │   main.py                                         # Server entry point, route registration, Flask app
     │   prompts.py                                      # Prompt templates and system instructions for LLM
-    │   requirements.txt                                # Python dependencies
+    │   requirements.txt                                # Python package dependencies
     │
     └───routes
-            __init__.py
-            route_process.py                            # API endpoint for standard document processing tasks
-            route_research.py                           # API endpoint for research & web queries
+            __init__.py                                 # Routes package initialization
+            route_process.py                            # API endpoint: formats LLM responses to Word styles
+            route_research.py                           # API endpoint: Zotero semantic search via Zotseek
