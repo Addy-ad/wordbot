@@ -111,7 +111,7 @@ graph TB
 
 ### Start python server
 
-![Start Python Backend](Extras\Media\StartPythonBackend.png)
+![Start Python Backend](Extras/Media/StartPythonBackend.png)
 
 Let's say this button is a fancy way to launch the Python backend by running `main.py`. For detailed setup instructions, refer to the [Python Ribbon Button Configuration](#python-ribbon-button-configuration) section to ensure the button works correctly when pressed.
 
@@ -119,13 +119,13 @@ Let's say this button is a fancy way to launch the Python backend by running `ma
 
 ### LLM Buttons
 
-![LLM Buttons](Extras\Media\LLMButtons.png)
+![LLM Buttons](Extras/Media/LLMButtons.png)
 
 These Wordbot LLM buttons enable direct communication with your LLM model. The responses are generated based solely on the model's training data. Please be aware that the LLM may produce hallucinations or inaccurate information when it lacks sufficient knowledge on a topic. The responses are purely based on the model you select. Check [LLM Configuration & Setup](#llm-configuration--setup) section on how to configure the API to communicate with your model so these buttons would work.
 
 ### Zotero Research Button
 
-![Zotero Research](Extras\Media\ZoteroResearch.png)
+![Zotero Research](Extras/Media/ZoteroResearch.png)
 
 The Zotero Research button is the only feature that follows the research route. Here's how it works:
 
@@ -153,15 +153,15 @@ The Zotero Research button is the only feature that follows the research route. 
 
 ### Manual buttons
 
-![Manual Buttons](Extras\Media\ManualButtons.png)
+![Manual Buttons](Extras/Media/ManualButtons.png)
 
-![Heading Numbers button](Extras\Media\HeadingNumberButton.png)
+![Heading Numbers button](Extras/Media/HeadingNumberButton.png)
 
 Example of **Heading numbers** button. I made it manual button since you need to click only once. The new headings would automatically follow the numberings. After adding numbers, just modify the style for each heading to your requirements.
 
-![Heading Numbers](Extras\Media\HeadingNumbers.png)
+![Heading Numbers](Extras/Media/HeadingNumbers.png)
 
-![Format Markdown Button](Extras\Media\FormatMarkdownButton.png) 
+![Format Markdown Button](Extras/Media/FormatMarkdownButton.png)
 
 (Are same as what was provied in [Examples using Wordbot](#examples-using-wordbot) section)
 
@@ -173,7 +173,7 @@ Example of **Heading numbers** button. I made it manual button since you need to
 
 **Update Citations Button** - This button calls Zotero's Refresh backend VBA macro from Zotero's project. Gemini said macOS users will not be able call a macro from another project. So, for macOS users, a message box will appear instructing them to click the refresh button directly in Zotero.
 
-![Update Citations](Extras\Media\UpdateCitations.png)
+![Update Citations](Extras/Media/UpdateCitations.png)
 
 ---
 
