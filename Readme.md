@@ -191,17 +191,34 @@ Wordbot was developed and tested using the following software versions and confi
 
 For regular use, simply download the pre-compiled Wordbot template `Wordbot.dotm` under ([Powershell\build\Wordbot.dotm](Powershell/build/Wordbot.dotm)). No PowerShell scripts or Word security modifications are required.
 
-* **Microsoft Word:** Compatible with Word on Windows (Office 2016 and Office 365) and macOS.
+* **Microsoft Word:** Compatible with Word on Windows (Office 2016 through Office 365) and macOS.
   * Simply place `Wordbot.dotm` into Word's `STARTUP` folder so it loads automatically on launch:
     * **Windows:**
       ```cmd
       %AppData%\Microsoft\Word\STARTUP
       ```
-    * **macOS (Office 2016, 2019, 2021, and 365):** (I am not sure as I dont have mac. But someone needs to check the path and report back to be updated)
-      ```bash
-      ~/Library/Group Containers/UBF8T346G9.Office/User Content/Startup/Word
-      ```
-      *(Note: On macOS, press `Cmd + Shift + G` in Finder to jump directly to this hidden folder path.)*
+    * **macOS (Office 2016, 2019, 2021, and 365):**
+
+      * **Terminal Path (Bash/Zsh):**
+        ```bash
+        ~/Library/Group Containers/UBF8T346G9.Office/User Content.localized/Startup.localized/Word
+        ```
+
+      * **Finder Path (`Cmd + Shift + G`):**
+        ```text
+        ~/Library/Group Containers/UBF8T346G9.Office/User Content/Startup/Word
+        ```
+
+        *(Note: macOS hides the `.localized` extensions in Finder, but the literal path with `.localized` is required when using Terminal commands.)*
+
+      * Copy `WordbotCurl.scpt` [From Here](Extras/macOS/WordbotCurl.scpt) into the Word application scripts folder:
+        ```bash
+        ~/Library/Application Scripts/com.microsoft.Word/WordbotCurl.scpt
+        ```
+      * **Mac Quarantine Attribute:** If downloading `Wordbot.dotm` via a web browser, macOS may quarantine the template file and disable macros. Remove the quarantine flag using:
+        ```bash
+        xattr -d com.apple.quarantine Wordbot.dotm
+        ```
 
 * **Zotero & Zotseek (For Research Features):**
   * **Zotero:** Tested on **Zotero 9.0.2**.
@@ -268,18 +285,20 @@ Follow these steps after copying `Wordbot.dotm` into your Word `STARTUP` folder:
 
 ### LLM Configuration & Setup
 
-Wordbot requires an OpenAI-compatible API endpoint to handle LLM tasks. **Installing and hosting an LLM server is outside the scope of this project**, but if you are starting from scratch and if you need a user-friendly local setup, you can try **[LM Studio](https://lmstudio.ai/)**. LM Studio provides a simple interface to download, run, and host local models with an OpenAI-compatible API server.
+Wordbot requires an OpenAI-compatible API endpoint to handle LLM tasks. **Installing and hosting an LLM server is outside the scope of this project**, but it works with any provider or server that supports OpenAI-style endpoints (e.g., LM Studio, llama.cpp, Ollama, vLLM, or cloud APIs). If you are starting from scratch and need a user-friendly local setup, **[LM Studio](https://lmstudio.ai/)** provides a simple interface to download, run, and host local models.
 
-Once your LLM server is running, open `main.py` (located in `Resources/PythonServer/main.py`) and update the configuration lines at the top of the file for example this is what I use for llamacpp with router mode:
+Once your LLM server is running, open `main.py` (located in `Resources/PythonServer/main.py`) and update the configuration lines at the top of the file. For example:
 
 ```python
 # --- CONFIG AT THE BEGINNING ---
-LLM_URL = "http://localhost:8080/v1"  # Your LLM endpoint (e.g., LM Studio, llama.cpp, etc.)
+LLM_URL = "http://localhost:8080/v1"  # Your LLM endpoint (e.g., this is for llama.cpp)
 MODEL_NAME = "Gemma4-E2B"              # Model identifier
 API_KEY = "XXXX"                       # Your API key (any string for local servers)
 ```
 
-> **Important Model Note:** Wordbot has been tested **Only with Gemma4-E2B model with thinking/reasoning mode turned off**. My main reason to do so is to show even smaller models can perfrom reasonably well provided proper instructions has been provided. Using models with active thinking chains can cause response parsing delays or get the script stuck in a thinking loop. So far there is no way to stop the response from word as its one way communication. Only way to stop is to kill the LLM server and start again. Please ensure reasoning/thinking mode is disabled in your LLM server settings.
+> **Model Compatibility & Performance Note:** Wordbot is model-agnostic and will work with any capable model exposing an OpenAI-compatible API. It has been tested with **Gemma4-E2B** to demonstrate that even smaller models perform exceptionally well when given structured system prompts. It has also been verified end-to-end with larger models like **Qwen2.5-32B-Instruct**. 
+>
+> **Reasoning/Thinking Mode:** If your chosen model supports active thinking or reasoning chains, please ensure reasoning/thinking mode is **disabled** in your LLM server settings. Active thinking output can cause response parsing delays or get stuck in a thinking loop. Because communication from Word is currently one-way, there is no stop signal from the UI; halting an runaway generation requires restarting the LLM server.
 
 ---
 
@@ -312,7 +331,7 @@ If you plan to build the `.dotm` template programmatically, or modify macros whi
 - **One-way communication**: VBA → Python server only. Can't interrupt generation mid-response.
 - **Stop/kill**: Kill the LLM server process to stop a long-running response.
 - **Model compatibility**: Only tested with Gemma4-E2B (thinking mode OFF).
-- **macOS compatibility**: Not tested at all. Need some testers to test.
+- **macOS compatibility**: Tested on macOS 26.5.2 with Mac 365
 - **Markdown formatting**: 
   - Works most of the time. But sometimes it decieds to run in loop infinitely. I will try to imporve. But for now, the only way is to force close word and then to jump back in.
   - **Multi-level lists** may not work as intended.

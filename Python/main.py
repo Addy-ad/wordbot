@@ -7,12 +7,18 @@ from flask import Flask
 from waitress import serve
 import logging
 from openai import OpenAI
+import os
 
 # Import route blueprints
 from routes import process_callback, research_callback
 
-import os
-os.system('cls')
+# Check the operating system and clear the terminal screen accordingly
+if os.name == 'nt':
+    # Windows system command to clear screen
+    os.system('cls')
+else:
+    # macOS and Linux system command to clear screen
+    os.system('clear')
 
 # Configure basic logging to show server events
 logging.basicConfig(level=logging.INFO)
@@ -32,14 +38,16 @@ app.config['JSON_AS_ASCII'] = False
 app.register_blueprint(process_callback)
 app.register_blueprint(research_callback)
 
+flaskPort = 3670
+
 if __name__ == '__main__':
     print(f"Wordbot Python Server Initializing with endpoints...")
     print("--------------------------------------------------")
-    print(f"LLM Endpoint:           http://127.0.0.1:5000/process")
-    print(f"Research Endpoint:      http://127.0.0.1:5000/research")
+    print(f"LLM Endpoint:            http://127.0.0.1:{flaskPort}/process")
+    print(f"Research Endpoint:       http://127.0.0.1:{flaskPort}/research")
     print("--------------------------------------------------")
-    print(f"LLM Server:             {LLM_URL}")
-    print(f"Selected LLM Model:     {MODEL_NAME}")
+    print(f"LLM Server:              {LLM_URL}")
+    print(f"Selected LLM Model:      {MODEL_NAME}")
     print("Ready to receive requests from MS Word.")
     
-    serve(app, host='127.0.0.1', port=5000)
+    serve(app, host='127.0.0.1', port=flaskPort)

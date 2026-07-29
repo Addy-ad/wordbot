@@ -3,8 +3,8 @@ Public Function PythonTask(ByVal endpoint As String, ByVal jsonBody As String) A
     Dim req As Object
     Dim dotCounter As Long
     Dim baseMessage As String
-    
-    url = "http://localhost:5000" & endpoint
+
+    url = "http://localhost:3670" & endpoint
 
     ' Check if running on Mac
     #If Mac Then
@@ -101,8 +101,7 @@ Private Sub Pause(seconds As Double)
     Loop
 End Sub
 
-' Mac-specific function using curl via AppleScript
-' Mac-specific function using curl via AppleScript
+' Mac-specific function using curl via AppleScriptTask
 #If Mac Then
 Private Function MacPythonTaskCurl(ByVal url As String, ByVal jsonBody As String) As String
     ' Escape JSON for shell - handle special characters properly
@@ -113,16 +112,15 @@ Private Function MacPythonTaskCurl(ByVal url As String, ByVal jsonBody As String
     escapedJson = Replace(escapedJson, vbCrLf, "\n")
     escapedJson = Replace(escapedJson, vbLf, "\n")
     
-    Dim script As String
+    Dim curlCommand As String
     Dim result As String
     
-    ' Build AppleScript that calls curl
-    script = "do shell script ""curl -s -X POST " & url & _
-             " -H 'Content-Type: application/json' -d '" & escapedJson & "'"""
+    ' Build curl shell command string directly without do shell script wrapper
+    curlCommand = "curl -s -X POST " & url & " -H 'Content-Type: application/json' -d '" & escapedJson & "'"
     
     On Error Resume Next
-    ' Execute AppleScript
-    result = MacScript(script)
+    ' Execute AppleScript via AppleScriptTask helper for Office 2016+ compatibility
+    result = AppleScriptTask("WordbotCurl.scpt", "doShellCurl", curlCommand)
     
     If Err.Number <> 0 Then
         ' Error occurred

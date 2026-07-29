@@ -14,12 +14,13 @@ Public Sub Ribbon_StartServer()
         pythonPath = Replace(pythonPath, "\", "/")
         scriptPath = Replace(scriptPath, "\", "/")
         
-        ' Escape double quotes for MacScript / AppleScript execution
+        ' Build raw shell command to run Python server in the background
         Dim cmd As String
-        cmd = "do shell script """ & Replace(pythonPath, """", "\""") & " " & Replace(scriptPath, """", "\""") & " > /dev/null 2>&1 &"""
+        cmd = "'" & Replace(pythonPath, "'", "'\''") & "' '" & Replace(scriptPath, "'", "'\''") & "' > /dev/null 2>&1 &"
         
         On Error Resume Next
-        MacScript cmd
+        ' Execute AppleScript via AppleScriptTask helper for Office 2016+ compatibility
+        AppleScriptTask "WordbotCurl.scpt", "doShellCurl", cmd
         On Error GoTo 0
     #Else
         ' Windows execution via Standard Shell
