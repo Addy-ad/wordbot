@@ -94,5 +94,20 @@ $pythonExe = Install-PythonDependencies -pythonServerPath $paths.pythonServerPat
 # Write-Host "Adding/overwriting VBA components..." -ForegroundColor Yellow
 Import-VBAComponents -project $targetProject -VBAFolder $paths.VBAFolder  -pythonExe $pythonExe
 
+# Compile and get error
+Write-Host "Compiling VBA project..." -ForegroundColor Yellow
+
+$compileResult = Get-VBACompileError -WordApp $WordApp
+
+if ($compileResult.Success) {
+    Write-Host "VBA Project compiled successfully!" -ForegroundColor Green
+} else {
+    Write-Host "VBA Project compilation FAILED!" -ForegroundColor Red
+    Write-Host "Error: $($compileResult.Error)" -ForegroundColor Red
+    Write-Host "Module: $($compileResult.FullModuleName)" -ForegroundColor Yellow
+    Write-Host "Line: $($compileResult.ErrorLine)" -ForegroundColor Yellow
+    Write-Host "Line Content: $($compileResult.ErrorLineContent)" -ForegroundColor Yellow
+}
+
 Write-Host ""
 

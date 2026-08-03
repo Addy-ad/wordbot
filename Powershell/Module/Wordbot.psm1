@@ -559,67 +559,72 @@ function Import-VBAComponents {
         return $false
     }
     
-    foreach ($file in $files) {
-        $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
-        try {
-            # Check if component already exists
-            $component = $null
-            try {
-                $component = $project.VBComponents.Item($name)
-            } catch {
-                # Component doesn't exist, that's fine
-            }
-            
-            if ($component) {
-                $null = $project.VBComponents.Remove($component)
-                Write-Host "    + Overwriting: $($file.Name)" -ForegroundColor Magenta
-            } else {
-                Write-Host "    + Adding: $($file.Name)" -ForegroundColor Magenta
-            }
-            
-            # For .bas files, ensure Attribute VB_Name exists
-            if ($file.Extension -eq ".bas") {
-                if ($file.Name -eq "aWordbotRibbonBtnFunctions.bas") {
-                    $raw = Get-Content $file.FullName -Raw -Encoding UTF8
-                    if ($raw -match "\{\{PYTHON_SERVER_PATH\}\}" -or $raw -match "\{\{PYTHON_EXE_PATH\}\}") {
-                        $updated = $raw -replace "\{\{PYTHON_EXE_PATH\}\}", $pythonExe
-                        $updated = $updated -replace "\{\{PYTHON_SERVER_PATH\}\}", $paths.pythonServerPath
+	# PHASE 1: DELETE ALL EXISTING COMPONENTS ONCE
+	# Get a static snapshot array of all components
+	$components = @($project.VBComponents)
 
-                        if ($updated -notmatch "^Attribute VB_Name") {
-                            $updated = "Attribute VB_Name = `"$name`"`r`n$updated"
-                        }
-                        
-                        $tempFile = [System.IO.Path]::GetTempFileName()
-                        [System.IO.File]::WriteAllText($tempFile, $updated, [System.Text.UTF8Encoding]::new($false))
-                        $null = $project.VBComponents.Import($tempFile)
-                        Remove-Item $tempFile -Force
-                        Write-Host "    + Configured Python executable and server path in $($file.Name)" -ForegroundColor Green
-                        continue
-                    }
-                }
+	foreach ($component in $components) {
+		$name = $component.Name
+		
+		# Skip document-level objects (Type 10 = vbext_ct_Document or named "ThisDocument")
+		if ($component.Type -ne 10 -and $name -ne "ThisDocument") {
+			$project.VBComponents.Remove($component)
+			Write-Host "    - Deleted: $name" -ForegroundColor Red
+		}
+	}
 
-                $firstLine = Get-Content $file.FullName -First 1
-                if ($firstLine -notmatch "^Attribute VB_Name") {
-                    $content = Get-Content $file.FullName -Raw -Encoding UTF8
-                    $newContent = "Attribute VB_Name = `"$name`"`r`n$content"
-                    # Write modified content to temporary file and import
-                    $tempFile = [System.IO.Path]::GetTempFileName()
-                    [System.IO.File]::WriteAllText($tempFile, $newContent, [System.Text.UTF8Encoding]::new($false))
-                    $null = $project.VBComponents.Import($tempFile)
-                    Remove-Item $tempFile -Force
-                } else {
-                    $null = $project.VBComponents.Import($file.FullName)
-                }
-            } else {
-                # .cls and .frm files - import directly
-                $null = $project.VBComponents.Import($file.FullName)
-            }
-            
-        } catch {
-            Write-Host "    - Failed: $($file.Name) - $_" -ForegroundColor Red
-            return $false
-        }
-    }
+	# PHASE 2: IMPORT ALL FILES
+	foreach ($file in $files) {
+		$name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+		
+		try {
+			# For .bas files, ensure Attribute VB_Name exists
+			if ($file.Extension -eq ".bas") {
+				if ($file.Name -eq "aWordbotRibbonBtnFunctions.bas") {
+					$raw = Get-Content $file.FullName -Raw -Encoding UTF8
+					if ($raw -match "\{\{PYTHON_SERVER_PATH\}\}" -or $raw -match "\{\{PYTHON_EXE_PATH\}\}") {
+						$updated = $raw -replace "\{\{PYTHON_EXE_PATH\}\}", $pythonExe
+						$updated = $updated -replace "\{\{PYTHON_SERVER_PATH\}\}", $paths.pythonServerPath
+
+						if ($updated -notmatch "^Attribute VB_Name") {
+							$updated = "Attribute VB_Name = `"$name`"`r`n$updated"
+						}
+						
+						$tempFile = [System.IO.Path]::GetTempFileName()
+						[System.IO.File]::WriteAllText($tempFile, $updated, [System.Text.UTF8Encoding]::new($false))
+						$null = $project.VBComponents.Import($tempFile)
+						Remove-Item $tempFile -Force
+						Write-Host "    + Configured Python executable and server path in $($file.Name)" -ForegroundColor Green
+						continue
+					}
+				}
+
+				$firstLine = Get-Content $file.FullName -First 1
+				if ($firstLine -notmatch "^Attribute VB_Name") {
+					$content = Get-Content $file.FullName -Raw -Encoding UTF8
+					$newContent = "Attribute VB_Name = `"$name`"`r`n$content"
+					
+					# Write modified content to temporary file and import
+					$tempFile = [System.IO.Path]::GetTempFileName()
+					[System.IO.File]::WriteAllText($tempFile, $newContent, [System.Text.UTF8Encoding]::new($false))
+					$null = $project.VBComponents.Import($tempFile)
+					Remove-Item $tempFile -Force
+					Write-Host "    + Imported: $($file.Name)" -ForegroundColor Magenta
+				} else {
+					$null = $project.VBComponents.Import($file.FullName)
+					Write-Host "    + Imported: $($file.Name)" -ForegroundColor Magenta
+				}
+			} else {
+				# .cls and .frm files - import directly
+				$null = $project.VBComponents.Import($file.FullName)
+				Write-Host "    + Imported: $($file.Name)" -ForegroundColor Magenta
+			}
+			
+		} catch {
+			Write-Host "    - Failed: $($file.Name) - $_" -ForegroundColor Red
+			return $false
+		}
+	}
     
     Write-Host "    + All VBA components imported successfully" -ForegroundColor Green
     return $true
@@ -1053,5 +1058,262 @@ function New-BlankDocument {
         WordAppInfo = $WordAppInfo
         TargetProject = $targetProject
         IsNewDocument = $true # Flag to track that we created new document
+    }
+}
+
+function Get-VBACompileError {
+    param(
+        $WordApp,
+        [switch]$Verbose
+    )
+    
+    if ($Verbose) { Write-Host "[VERBOSE] Checking VBA compilation..." -ForegroundColor Cyan }
+    
+    # Get the compile button
+    $compileButton = $WordApp.VBE.CommandBars.FindControl([Microsoft.Office.Core.MsoControlType]::msoControlButton, 578)
+    
+    if (-not $compileButton) {
+        if ($Verbose) { Write-Host "[VERBOSE] Compile button not found" -ForegroundColor Red }
+        return @{ Success = $true; Error = $null; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
+    }
+    
+    if (-not $compileButton.Enabled) {
+        if ($Verbose) { Write-Host "[VERBOSE] No compilation needed (button disabled)" -ForegroundColor Green }
+        return @{ Success = $true; Error = $null; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
+    }
+    
+    # Execute compile
+    if ($Verbose) { Write-Host "[VERBOSE] Compiling VBA project..." -ForegroundColor Cyan }
+    $compileButton.Execute()
+    
+    # Wait for dialog using UI Automation
+    $messageBox = $null
+    $maxRetries = 10
+    $retryCount = 0
+    $moduleName = $null
+    $moduleExtension = $null
+    $errorLine = $null
+    $errorLineContent = $null
+    
+    try {
+        Add-Type -AssemblyName UIAutomationClient -ErrorAction Stop
+    } catch {
+        if ($Verbose) { Write-Host "[VERBOSE] UI Automation not available" -ForegroundColor Red }
+        return @{ Success = $false; Error = "UI Automation not available"; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
+    }
+    
+    while ($retryCount -lt $maxRetries -and $null -eq $messageBox) {
+        Start-Sleep -Milliseconds 300
+        
+        try {
+            $condition = New-Object System.Windows.Automation.PropertyCondition(
+                [System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770"
+            )
+            
+            $messageBox = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst(
+                [System.Windows.Automation.TreeScope]::Descendants, $condition
+            )
+            
+            if ($null -ne $messageBox) {
+                $title = $messageBox.Current.Name
+                if ($title -like "Microsoft Visual Basic*") {
+                    break
+                } else {
+                    $messageBox = $null
+                }
+            }
+            
+            $retryCount++
+        } catch {
+            $retryCount++
+        }
+    }
+    
+    # Get fresh reference to compile button
+    $compileButton = $WordApp.VBE.CommandBars.FindControl([Microsoft.Office.Core.MsoControlType]::msoControlButton, 578)
+    
+    if ($compileButton.Enabled) {
+        if ($Verbose) { Write-Host "[VERBOSE] Compilation failed" -ForegroundColor Red }
+        $errorMsg = $null
+        
+        # ============================================================
+        # Get module info from VBE
+        # ============================================================
+        if ($Verbose) { Write-Host "[VERBOSE] Getting module information from VBE..." -ForegroundColor Cyan }
+        
+        try {
+            if ($WordApp.VBE.ActiveCodePane) {
+                $codePane = $WordApp.VBE.ActiveCodePane
+                $codeModule = $codePane.CodeModule
+                
+                $moduleName = $codeModule.Name
+                if ($Verbose) { Write-Host "[VERBOSE] Active module: $moduleName" -ForegroundColor Green }
+                
+                # Get module extension
+                try {
+                    $vbaProject = $WordApp.VBE.ActiveVBProject
+                    foreach ($component in $vbaProject.VBComponents) {
+                        if ($component.Name -eq $moduleName) {
+                            $moduleType = $component.Type
+                            switch ($moduleType) {
+                                1 { $moduleExtension = ".bas" }
+                                2 { $moduleExtension = ".cls" }
+                                3 { $moduleExtension = ".frm" }
+                                100 { $moduleExtension = ".doc" }
+                                default { $moduleExtension = ".unknown" }
+                            }
+                            if ($Verbose) { Write-Host "[VERBOSE] Module extension: $moduleExtension" -ForegroundColor Cyan }
+                            break
+                        }
+                    }
+                } catch {}
+                
+                # ============================================================
+                # Find the ACTUAL error line
+                # ============================================================
+                try {
+                    # Method 1: Get selection (what's highlighted)
+                    $selection = $codePane.GetSelection(1, 1, 1, 1)
+                    if ($selection) {
+                        $errorLine = $selection.TopLine
+                        if ($Verbose) { Write-Host "[VERBOSE] Selection line: $errorLine" -ForegroundColor Cyan }
+                    }
+                } catch {
+                    if ($Verbose) { Write-Host "[VERBOSE] Could not get selection: $($_.Exception.Message)" -ForegroundColor Yellow }
+                }
+                
+                # Method 2: Check TopLine for problematic patterns
+                if (-not $errorLine) {
+                    try {
+                        $topLine = $codePane.TopLine
+                        if ($topLine -gt 0) {
+                            $lineToCheck = $codeModule.Lines($topLine, 1)
+                            $problematicPatterns = @(
+                                "*ParentNode As node*",
+                                "*Children As Collection*",
+                                "*ParentNode As*",
+                                "*Public *"
+                            )
+                            foreach ($pattern in $problematicPatterns) {
+                                if ($lineToCheck -like $pattern -and $topLine -gt 5) {
+                                    $errorLine = $topLine
+                                    $errorLineContent = $lineToCheck
+                                    if ($Verbose) { Write-Host "[VERBOSE] Found error line from TopLine: $errorLine" -ForegroundColor Cyan }
+                                    break
+                                }
+                            }
+                        }
+                    } catch {}
+                }
+                
+                # Method 3: Search entire module for problematic patterns
+                if (-not $errorLine) {
+                    try {
+                        $totalLines = $codeModule.CountOfLines
+                        $problematicPatterns = @(
+                            "*ParentNode As node*",
+                            "*Children As Collection*",
+                            "*ParentNode As*",
+                            "*Public *"
+                        )
+                        
+                        for ($i = 1; $i -le [Math]::Min($totalLines, 50); $i++) {
+                            $line = $codeModule.Lines($i, 1)
+                            foreach ($pattern in $problematicPatterns) {
+                                if ($line -like $pattern -and $i -gt 5) {
+                                    $errorLine = $i
+                                    $errorLineContent = $line
+                                    if ($Verbose) { Write-Host "[VERBOSE] Found pattern '$pattern' at line: $errorLine" -ForegroundColor Cyan }
+                                    break
+                                }
+                            }
+                            if ($errorLine) { break }
+                        }
+                    } catch {}
+                }
+                
+                if ($Verbose -and $errorLine) {
+                    Write-Host "[VERBOSE] Error line content: $errorLineContent" -ForegroundColor Yellow
+                }
+            }
+        } catch {
+            if ($Verbose) { Write-Host "[VERBOSE] Could not get module info: $($_.Exception.Message)" -ForegroundColor Red }
+        }
+        
+        # ============================================================
+        # Get error text from dialog
+        # ============================================================
+        if ($null -ne $messageBox) {
+            try {
+                $textCondition = New-Object System.Windows.Automation.PropertyCondition(
+                    [System.Windows.Automation.AutomationElement]::AutomationIdProperty, "65535"
+                )
+                $textElement = $messageBox.FindFirst(
+                    [System.Windows.Automation.TreeScope]::Descendants, $textCondition
+                )
+                
+                if ($null -ne $textElement) {
+                    $errorMsg = $textElement.Current.Name
+                } else {
+                    $allElements = $messageBox.FindAll([System.Windows.Automation.TreeScope]::Descendants, 
+                        [System.Windows.Automation.Condition]::TrueCondition)
+                    foreach ($element in $allElements) {
+                        $name = $element.Current.Name
+                        if ($name -and $name.Trim().Length -gt 0 -and $name -notlike "*OK*" -and $name -notlike "*Cancel*") {
+                            $errorMsg = $name
+                            break
+                        }
+                    }
+                }
+            } catch {}
+            
+            # Close dialog
+            try {
+                Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class User32 {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string lpszClass, string lpszWindow);
+    
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    
+    public const uint BM_CLICK = 0x00F5;
+}
+"@ -ErrorAction SilentlyContinue
+                
+                $hwnd = [IntPtr]$messageBox.Current.NativeWindowHandle
+                $okHwnd = [User32]::FindWindowEx($hwnd, [IntPtr]::Zero, "Button", "OK")
+                
+                if ($okHwnd -ne [IntPtr]::Zero) {
+                    [User32]::SendMessage($okHwnd, [User32]::BM_CLICK, [IntPtr]::Zero, [IntPtr]::Zero)
+                }
+            } catch {}
+        }
+        
+        $result = @{ 
+            Success = $false
+            Error = if ($errorMsg) { $errorMsg.Trim() } else { "Unknown compile error" }
+            Module = $moduleName
+            ModuleExtension = $moduleExtension
+            FullModuleName = if ($moduleName -and $moduleExtension) { "$moduleName$moduleExtension" } else { $moduleName }
+            ErrorLine = $errorLine
+            ErrorLineContent = $errorLineContent
+        }
+        
+        if ($Verbose) {
+            Write-Host "[VERBOSE] Error: $($result.Error)" -ForegroundColor Cyan
+            Write-Host "[VERBOSE] Module: $($result.FullModuleName)" -ForegroundColor Green
+            Write-Host "[VERBOSE] Line: $($result.ErrorLine)" -ForegroundColor Cyan
+            if ($errorLineContent) {
+                Write-Host "[VERBOSE] Line content: $errorLineContent" -ForegroundColor Yellow
+            }
+        }
+        return $result
+        
+    } else {
+        if ($Verbose) { Write-Host "[VERBOSE] Compilation successful" -ForegroundColor Green }
+        return @{ Success = $true; Error = $null; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
     }
 }
