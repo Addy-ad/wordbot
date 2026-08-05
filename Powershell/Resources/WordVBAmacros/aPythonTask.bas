@@ -107,7 +107,6 @@ Private Function MacPythonTaskCurl(ByVal url As String, ByVal jsonBody As String
     ' Escape JSON for shell - handle special characters properly
     Dim escapedJson As String
     escapedJson = Replace(jsonBody, "\", "\\")
-    escapedJson = Replace(escapedJson, """", "\""")
     escapedJson = Replace(escapedJson, "'", "'\''")
     escapedJson = Replace(escapedJson, vbCrLf, "\n")
     escapedJson = Replace(escapedJson, vbLf, "\n")

@@ -104,9 +104,15 @@ if ($compileResult.Success) {
 } else {
     Write-Host "VBA Project compilation FAILED!" -ForegroundColor Red
     Write-Host "Error: $($compileResult.Error)" -ForegroundColor Red
-    Write-Host "Module: $($compileResult.FullModuleName)" -ForegroundColor Yellow
-    Write-Host "Line: $($compileResult.ErrorLine)" -ForegroundColor Yellow
-    Write-Host "Line Content: $($compileResult.ErrorLineContent)" -ForegroundColor Yellow
+    
+    # Only print module/line info if we have it
+    if ($compileResult.Module) {
+        Write-Host "Module: $($compileResult.FullModuleName)" -ForegroundColor Yellow
+    }
+    if ($compileResult.ErrorLine) {
+        Write-Host "Line: $($compileResult.ErrorLine)" -ForegroundColor Yellow
+        Write-Host "Line Content: $($compileResult.ErrorLineContent)" -ForegroundColor Yellow
+    }
 }
 
 Write-Host ""

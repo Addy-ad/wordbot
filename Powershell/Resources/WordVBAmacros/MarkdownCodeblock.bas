@@ -128,3 +128,19 @@ Cleanup:
     Application.ScreenUpdating = oldScreenUpdating
     Application.StatusBar = "Code blocks conversion complete"
 End Sub
+
+Public Function IsInsideCodeBlock(rng As Range) As Boolean
+    ' Check the shading (The Atomic Guard)
+    If rng.Shading.BackgroundPatternColor = wdColorGray10 Then
+        IsInsideCodeBlock = True
+        Exit Function
+    End If
+    
+    ' Check font as fallback
+    If rng.Font.Name = "Consolas" Then
+        IsInsideCodeBlock = True
+        Exit Function
+    End If
+    
+    IsInsideCodeBlock = False
+End Function

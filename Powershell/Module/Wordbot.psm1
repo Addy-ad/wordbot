@@ -1070,11 +1070,11 @@ function Get-VBACompileError {
     if ($Verbose) { Write-Host "[VERBOSE] Checking VBA compilation..." -ForegroundColor Cyan }
     
     # Get the compile button
-    $compileButton = $WordApp.VBE.CommandBars.FindControl([Microsoft.Office.Core.MsoControlType]::msoControlButton, 578)
+    $compileButton = $WordApp.VBE.CommandBars.FindControl(1, 578)
     
     if (-not $compileButton) {
         if ($Verbose) { Write-Host "[VERBOSE] Compile button not found" -ForegroundColor Red }
-        return @{ Success = $true; Error = $null; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
+        return @{ Success = $false; Error = "Compile button not found in VBE"; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
     }
     
     if (-not $compileButton.Enabled) {

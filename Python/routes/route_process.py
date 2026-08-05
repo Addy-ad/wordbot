@@ -39,7 +39,7 @@ def process_logic(text, task, prompt_type="system_instruction"):
     user_len = len(user_content)
     total_len = system_len + user_len
     
-    print("DEBUG PROMPT LENGTHS:")
+    print("\nDEBUG PROMPT LENGTHS:")
     print(f"    System: {system_len} chars (~{system_len//4} tokens)")
     print(f"    User:   {user_len} chars (~{user_len//4} tokens)")
     print(f"    Total:  {total_len} chars (~{total_len//4} tokens)")
