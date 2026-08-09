@@ -1,3 +1,56 @@
+' Called dynamically via Application.Run from AutoExec / AutoExit
+Public Sub BindUnbindResearch(ByVal Action As Long)
+    Dim bindings As Variant
+    Dim i As Long
+    Dim keyCode As Long
+    Dim macroName As String
+    Dim kb As KeyBinding
+    Dim mod1 As Long, mod2 As Long
+    
+    #If Mac Then
+        bindings = Array( _
+            Array(BuildKeyCode(wdKeyControl, wdKeyOption, wdKeyZ), "Ribbon_wordbotResearch") _
+        )
+    #Else
+        bindings = Array( _
+            Array(BuildKeyCode(wdKeyAlt, wdKeyZ), "Ribbon_wordbotResearch") _
+        )
+    #End If
+    
+    On Error Resume Next
+    
+    If Action = 1 Then
+        CustomizationContext = ThisDocument
+    End If
+    
+    For i = LBound(bindings) To UBound(bindings)
+        keyCode = CLng(bindings(i)(0))
+        macroName = CStr(bindings(i)(1))
+        
+        Set kb = FindKey(keyCode)
+        kb.Clear
+        
+        If Action = 1 Then
+            KeyBindings.Add KeyCategory:=wdKeyCategoryMacro, _
+                            Command:=macroName, _
+                            KeyCode:=keyCode
+        End If
+    Next i
+    
+    ThisDocument.Saved = True
+    On Error GoTo 0
+End Sub
+
+Public Sub RibbonProxy_Research(control As IRibbonControl)
+    Ribbon_wordbotResearch
+End Sub
+
+Public Sub Ribbon_wordbotResearch()
+    Dim txt As String
+    txt = GetValidatedText("Research")
+    If txt <> "" Then wordbotResearch txt
+End Sub
+
 Public Sub wordbotResearch(selectedText As String)
     Dim txt As String
     Dim body As String

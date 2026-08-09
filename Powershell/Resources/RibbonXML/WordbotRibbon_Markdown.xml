@@ -1,0 +1,26 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
+  <ribbon>
+    <tabs>
+      <tab id="MyCustomTab" label="Wordbot Markdown">
+        <group id="MyGroup1" label=" ">
+          <button 
+            id="btnHeaderNumber" 
+            label="Heading Numbers" 
+            onAction="RibbonProxy_HeadingNumber" 
+            imageMso="MultilevelListGallery" 
+            size="large" 
+            screentip="Heading Numbers" 
+            supertip="Apply or update multilevel heading numbers to your document headings" />
+          <button 
+            id="btnFormatTest" 
+            label="Format Markdown" 
+            onAction="RibbonProxy_FormatMarkdown" 
+            imageMso="TableFormatPublisher" 
+            size="large" 
+            screentip="Format Markdown" 
+            supertip="Convert and apply Markdown-style formatting to the selected text" />
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>

@@ -1,3 +1,20 @@
+Public Sub RibbonProxy_ConvertCitations(control As IRibbonControl)
+    Ribbon_ConvertSelectionToFields
+End Sub
+
+Public Sub RibbonProxy_UpdateCitations(control As IRibbonControl)
+    UpdateAllReferences
+End Sub
+
+Public Sub Ribbon_ConvertSelectionToFields()
+    Dim targetRng As Range
+    Set targetRng = GetValidatedText("convert citations", "range")
+    
+    If Not targetRng Is Nothing Then
+        ConvertSelectionToFields_callback targetRng
+    End If
+End Sub
+
 Public Sub ConvertSelectionToFields_callback(ByRef docRange As Range)
 
     If docRange.Start = docRange.End Then

@@ -1,3 +1,16 @@
+Public Sub RibbonProxy_FormatMarkdown(control As IRibbonControl)
+    Ribbon_FormatMarkdown
+End Sub
+
+Public Sub Ribbon_FormatMarkdown()
+    Dim targetRng As Range
+    Set targetRng = GetValidatedText("format markdown", "range")
+    
+    If Not targetRng Is Nothing Then
+        FormatMarkdownAll targetRng
+    End If
+End Sub
+
 Public Sub FormatMarkdownAll(targetRange As Range)
     Dim objUndo As UndoRecord
     Set objUndo = Application.UndoRecord

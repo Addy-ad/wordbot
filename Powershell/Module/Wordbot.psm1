@@ -121,7 +121,11 @@ function Install-PythonDependencies {
     $requiredPackages = Get-Content $reqPath | ForEach-Object {
         $line = $_.Trim()
         if ($line -and -not $line.StartsWith("#")) {
-            ($line -split '[=<>]')[0].Trim()
+            # Strip specifiers (~=, ==, >=, <=, etc.) and environment markers
+            # Enhanced regex to handle package names with dots (e.g., google.cloud)
+            if ($line -match '^([a-zA-Z0-9_.\-]+)') {
+                $matches[1]
+            }
         }
     }
 
@@ -321,6 +325,7 @@ function Get-Paths {
         $extension = $null,
         $outputPath = $null,
         $Config = $null,
+        $Edition = $null,
         [switch]$wordStartupPathFlag
     )
     
@@ -336,18 +341,24 @@ function Get-Paths {
         if (-not $fileName) { $fileName = $Config.FileName }
         if (-not $extension) { $extension = $Config.Extension }
         if (-not $outputPath -and $Config.outputFolder) { $outputPath = $Config.outputFolder }
+        if (-not $Edition -and $Config.Edition) { $Edition = $Config.Edition }
     }
 
     # Default fallback values
     if (-not $fileName) { $fileName = "Wordbot" }
     if (-not $extension) { $extension = ".dotm" }
     if (-not $outputPath) { $outputPath = $wordStartupPath }
+    if (-not $Edition) { $Edition = "Markdown" }
     
     $fullFileName = $fileName + $extension
 
-    $vbaRel = if ($Config.VBAFolderRelativePath) { $Config.VBAFolderRelativePath } else { "Resources\WordVBAmacros" }
-    $ribbonRel = if ($Config.RibbonXmlRelativePath) { $Config.RibbonXmlRelativePath } else { "Resources\WordbotRibbon.xml" }
-    $pythonRel = if ($Config.PythonServerLocation) { $Config.PythonServerLocation } else { "..\Python\main.py" }
+    # FIX: Null-check for Config properties
+    $vbaRel = if ($Config -and $Config.VBAFolderRelativePath) { $Config.VBAFolderRelativePath } else { "Resources\WordVBAmacros" }
+    $pythonRel = if ($Config -and $Config.PythonServerLocation) { $Config.PythonServerLocation } else { "..\Python\main.py" }
+    $ribbonFolderRel = if ($Config -and $Config.RibbonXmlRelativePath) { $Config.RibbonXmlRelativePath } else { "Resources\RibbonXML" }
+    
+    $ribbonFileName = "WordbotRibbon_$Edition.xml"
+    $ribbonRel = Join-Path $ribbonFolderRel $ribbonFileName
 
     return @{
         scriptPath        = $scriptPath
@@ -376,11 +387,11 @@ function Test-CheckFileExists {
 function Remove-FileIfExists {
     param(
         $FilePath,
-        [switch]$Ask
+        [switch]$Force
     )
     
     if (Test-Path $FilePath) {
-        if ($Ask) {
+        if (-not $Force) {
             $choice = Read-Host "    Would you like to remove now? (y/n)"
             if ($choice -ne 'y') {
                 Write-Host "    + Skipped removal and Stopping script" -ForegroundColor Red
@@ -396,7 +407,6 @@ function Remove-FileIfExists {
             return $true
         } catch {
             Write-Host "    - Failed to remove: $_" -ForegroundColor Red
-            Write-Host "    - File may be open or locked. Close any programs using it and try again." -ForegroundColor Yellow
             return $false
         }
     }
@@ -420,16 +430,20 @@ function New-WordApplication {
             $proc = Start-Process -FilePath "WINWORD" -PassThru
             $wordPID = $proc.Id
 
-            # Poll the COM server until Word is fully ready
             $word = $null
-            $timeout = 10 # seconds
+            $timeout = 15 # Max timeout seconds
             $startTime = [System.DateTime]::Now
 
+            # Deterministic loop checking if the process is active and responding to COM
             while ($null -eq $word -and ([System.DateTime]::Now - $startTime).TotalSeconds -lt $timeout) {
+                if (-not (Get-Process -Id $wordPID -ErrorAction SilentlyContinue)) {
+                    throw "Word process with PID $wordPID terminated unexpectedly."
+                }
+
                 try {
                     $word = $interop::GetActiveObject("Word.Application")
                 } catch {
-                    Start-Sleep -Milliseconds 250
+                    Start-Sleep -Milliseconds 100
                 }
             }
 
@@ -464,22 +478,39 @@ function New-WordApplication {
 function Close-WordApplication {
     param($WordApp)
     
-    if ($WordApp) {
-        try {
-            $wordPID = $WordApp.ProcessID  # Get the stored PID
-            Write-Host "    + Closing Word instance..."
-            $WordApp.Quit()
+    if (-not $WordApp) {
+        Write-Host "    + No Word instance to close"
+        return $true
+    }
+
+    $wordPID = $null
+
+    try {
+        $wordPID = $WordApp.ProcessID
+        Write-Host "    + Closing Word instance..."
+        $WordApp.Quit()
+    } catch {
+        Write-Host "    - Failed to call Quit() on Word: $_" -ForegroundColor Red
+    } finally {
+        # Explicitly release the COM wrapper
+        if ([System.Runtime.InteropServices.Marshal]::IsComObject($WordApp)) {
             [System.Runtime.InteropServices.Marshal]::ReleaseComObject($WordApp) | Out-Null
-            [System.GC]::Collect()
-            [System.GC]::WaitForPendingFinalizers()
-            Write-Host "    + Word application with [PID: $wordPID] closed" -ForegroundColor Green
-            return $true
-        } catch {
-            Write-Host "    - Failed to close Word instance: $_" -ForegroundColor Red
-            return $false
+        }
+        
+        # Force Garbage Collection twice for CoreCLR / PowerShell 7
+        [System.GC]::Collect()
+        [System.GC]::WaitForPendingFinalizers()
+        [System.GC]::Collect()
+        [System.GC]::WaitForPendingFinalizers()
+
+        if ($wordPID) {
+            while (Get-Process -Id $wordPID -ErrorAction SilentlyContinue) {
+                Start-Sleep -Milliseconds 100
+            }
         }
     }
-    Write-Host "    + No Word instance to close"
+
+    Write-Host "    + Word application with [PID: $wordPID] closed" -ForegroundColor Green
     return $true
 }
 
@@ -500,21 +531,81 @@ function New-Document {
 function Save-Document {
     param(
         $Document,
-        $FilePath
+        $FilePath,
+        [int]$WordPID
     )
     
-    # Determine format from file extension
     $extension = [System.IO.Path]::GetExtension($FilePath)
     $format = if ($extension -eq ".docm") { 13 } else { 15 }
     
+    $dismissJob = $null
     try {
-        # Write-Host "    + Saving document..." -ForegroundColor Yellow
+        $Document.RemovePersonalInformation = $true
+        
+        $dismissJob = Start-DocumentInspectorDismissJob -WordPID $WordPID
+        
         $Document.SaveAs2([ref][System.Object]$FilePath, [ref][System.Object]$format, [ref]$false)
         Write-Host "    + Document saved: $FilePath" -ForegroundColor Green
+        
+        Stop-DocumentInspectorJob -Job $dismissJob
         return $true
     } catch {
+        Stop-DocumentInspectorJob -Job $dismissJob
         Write-Host "    - Failed to save document: $_" -ForegroundColor Red
         return $false
+    }
+}
+
+function Start-DocumentInspectorDismissJob {
+    param([int]$WordPID)
+    
+    if (-not $WordPID) { return $null }
+    
+    return Start-Job -ScriptBlock {
+        param($targetPid)
+        Add-Type -AssemblyName UIAutomationClient
+        Add-Type -AssemblyName UIAutomationTypes
+
+        $procCondition = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::ProcessIdProperty, 
+            $targetPid
+        )
+
+        for ($i = 1; $i -le 30; $i++) {
+            $topLevelWindows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+                [System.Windows.Automation.TreeScope]::Children, 
+                $procCondition
+            )
+
+            $targetButton = $null
+            foreach ($win in $topLevelWindows) {
+                $targetButton = $win.FindFirst(
+                    [System.Windows.Automation.TreeScope]::Descendants,
+                    [System.Windows.Automation.AndCondition]::new(
+                        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::AutomationIdProperty, "1"),
+                        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "NetUIButton")
+                    )
+                )
+                if ($targetButton) { break }
+            }
+
+            if ($targetButton) {
+                $invokePattern = $targetButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+                if ($invokePattern) {
+                    $invokePattern.Invoke()
+                    return
+                }
+            }
+            Start-Sleep -Milliseconds 300
+        }
+    } -ArgumentList $WordPID
+}
+
+function Stop-DocumentInspectorJob {
+    param($Job)
+    if ($Job) {
+        Stop-Job $Job -ErrorAction SilentlyContinue
+        Remove-Job $Job -ErrorAction SilentlyContinue
     }
 }
 
@@ -522,18 +613,26 @@ function Close-Document {
     param($Document)
     
     if ($Document) {
+        $docName = "Unknown"
         try {
             $docName = $Document.Name
-            Write-Host "    + Closing document..."
-            $Document.Close()
-            [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Document) | Out-Null
+            Write-Host "    + Closing document '$docName'..." -ForegroundColor Yellow
+            
+            # SaveChanges = 0 (wdDoNotSaveChanges) to prevent prompts during teardown
+            $Document.Close([ref]0) 
             Write-Host "    + Document '$docName' closed successfully" -ForegroundColor Green
             return $true
         } catch {
-            Write-Host "    - Failed to close document: $_" -ForegroundColor Red
+            Write-Host "    - Failed to close document '$docName': $_" -ForegroundColor Red
             return $false
+        } finally {
+            # Guarantee COM release regardless of whether .Close() succeeded or threw an error
+            if ([System.Runtime.InteropServices.Marshal]::IsComObject($Document)) {
+                [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Document) | Out-Null
+            }
         }
     }
+    
     Write-Host "    + No document to close"
     return $true
 }
@@ -541,90 +640,96 @@ function Close-Document {
 function Import-VBAComponents {
     param(
         $project,
-        $VBAFolder,
-        $pythonExe
+        [array]$VBAList,
+        $pythonExe,
+        $pythonServerPath,
+        [switch]$UpdatePythonPaths
     )
     
-    if (-not (Test-Path $VBAFolder)) {
-        Write-Host "    - VBA folder not found: $VBAFolder" -ForegroundColor Red
+    if (-not $VBAList -or $VBAList.Count -eq 0) {
+        Write-Host "    - No VBA modules provided to import." -ForegroundColor Red
         return $false
     }
-    
-    # Import VBA components
-    $files = Get-ChildItem -Path "$VBAFolder\*.bas", "$VBAFolder\*.cls", "$VBAFolder\*.frm"
-    Write-Host "    + Found $($files.Count) VBA files" -ForegroundColor Green
-    
-    if ($files.Count -eq 0) {
-        Write-Host "    - No VBA files found in: $VBAFolder" -ForegroundColor Red
-        return $false
+
+    # Resolve all files into FileInfo objects
+    $files = @()
+    foreach ($item in $VBAList) {
+        if (Test-Path $item) {
+            $files += Get-Item $item
+        } else {
+            Write-Host "    - Module file not found: $item" -ForegroundColor Red
+            return $false
+        }
     }
-    
-	# PHASE 1: DELETE ALL EXISTING COMPONENTS ONCE
-	# Get a static snapshot array of all components
-	$components = @($project.VBComponents)
 
-	foreach ($component in $components) {
-		$name = $component.Name
-		
-		# Skip document-level objects (Type 10 = vbext_ct_Document or named "ThisDocument")
-		if ($component.Type -ne 10 -and $name -ne "ThisDocument") {
-			$project.VBComponents.Remove($component)
-			Write-Host "    - Deleted: $name" -ForegroundColor Red
-		}
-	}
+    Write-Host "    + Found $($files.Count) VBA files to import" -ForegroundColor Green
 
-	# PHASE 2: IMPORT ALL FILES
-	foreach ($file in $files) {
-		$name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
-		
-		try {
-			# For .bas files, ensure Attribute VB_Name exists
-			if ($file.Extension -eq ".bas") {
-				if ($file.Name -eq "aWordbotRibbonBtnFunctions.bas") {
-					$raw = Get-Content $file.FullName -Raw -Encoding UTF8
-					if ($raw -match "\{\{PYTHON_SERVER_PATH\}\}" -or $raw -match "\{\{PYTHON_EXE_PATH\}\}") {
-						$updated = $raw -replace "\{\{PYTHON_EXE_PATH\}\}", $pythonExe
-						$updated = $updated -replace "\{\{PYTHON_SERVER_PATH\}\}", $paths.pythonServerPath
+    # PHASE 1: DELETE ALL EXISTING COMPONENTS ONCE
+    $components = @($project.VBComponents)
 
-						if ($updated -notmatch "^Attribute VB_Name") {
-							$updated = "Attribute VB_Name = `"$name`"`r`n$updated"
-						}
-						
-						$tempFile = [System.IO.Path]::GetTempFileName()
-						[System.IO.File]::WriteAllText($tempFile, $updated, [System.Text.UTF8Encoding]::new($false))
-						$null = $project.VBComponents.Import($tempFile)
-						Remove-Item $tempFile -Force
-						Write-Host "    + Configured Python executable and server path in $($file.Name)" -ForegroundColor Green
-						continue
-					}
-				}
+    foreach ($component in $components) {
+        $name = $component.Name
+        
+        # Skip document-level objects (Type 10 = vbext_ct_Document or named "ThisDocument")
+        if ($component.Type -ne 10 -and $name -ne "ThisDocument") {
+            $project.VBComponents.Remove($component)
+            Write-Host "    - Deleted: $name" -ForegroundColor Red
+        }
+    }
 
-				$firstLine = Get-Content $file.FullName -First 1
-				if ($firstLine -notmatch "^Attribute VB_Name") {
-					$content = Get-Content $file.FullName -Raw -Encoding UTF8
-					$newContent = "Attribute VB_Name = `"$name`"`r`n$content"
-					
-					# Write modified content to temporary file and import
-					$tempFile = [System.IO.Path]::GetTempFileName()
-					[System.IO.File]::WriteAllText($tempFile, $newContent, [System.Text.UTF8Encoding]::new($false))
-					$null = $project.VBComponents.Import($tempFile)
-					Remove-Item $tempFile -Force
-					Write-Host "    + Imported: $($file.Name)" -ForegroundColor Magenta
-				} else {
-					$null = $project.VBComponents.Import($file.FullName)
-					Write-Host "    + Imported: $($file.Name)" -ForegroundColor Magenta
-				}
-			} else {
-				# .cls and .frm files - import directly
-				$null = $project.VBComponents.Import($file.FullName)
-				Write-Host "    + Imported: $($file.Name)" -ForegroundColor Magenta
-			}
-			
-		} catch {
-			Write-Host "    - Failed: $($file.Name) - $_" -ForegroundColor Red
-			return $false
-		}
-	}
+    # PHASE 2: IMPORT ALL SPECIFIED FILES
+    foreach ($file in $files) {
+        $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+        
+        try {
+            # For .bas files, ensure Attribute VB_Name exists
+            if ($file.Extension -eq ".bas") {
+                # Only update Python paths if the switch is provided AND paths are not null/empty
+                if ($UpdatePythonPaths -and $file.Name -eq "aWordbotRibbonLLMFunctions.bas" -and $pythonExe -and $pythonServerPath) {
+                    $raw = Get-Content $file.FullName -Raw -Encoding UTF8
+                    if ($raw -match "\{\{PYTHON_SERVER_PATH\}\}" -or $raw -match "\{\{PYTHON_EXE_PATH\}\}") {
+                        $updated = $raw -replace "\{\{PYTHON_EXE_PATH\}\}", $pythonExe
+                        $updated = $updated -replace "\{\{PYTHON_SERVER_PATH\}\}", $pythonServerPath
+
+                        if ($updated -notmatch "^Attribute VB_Name") {
+                            $updated = "Attribute VB_Name = `"$name`"`r`n$updated"
+                        }
+                        
+                        $tempFile = [System.IO.Path]::GetTempFileName()
+                        [System.IO.File]::WriteAllText($tempFile, $updated, [System.Text.UTF8Encoding]::new($false))
+                        $null = $project.VBComponents.Import($tempFile)
+                        Remove-Item $tempFile -Force
+                        Write-Host "    + Configured Python executable and server path in $($file.Name)" -ForegroundColor Green
+                        continue
+                    }
+                }
+
+                $firstLine = Get-Content $file.FullName -First 1
+                if ($firstLine -notmatch "^Attribute VB_Name") {
+                    $content = Get-Content $file.FullName -Raw -Encoding UTF8
+                    $newContent = "Attribute VB_Name = `"$name`"`r`n$content"
+                    
+                    # Write modified content to temporary file and import
+                    $tempFile = [System.IO.Path]::GetTempFileName()
+                    [System.IO.File]::WriteAllText($tempFile, $newContent, [System.Text.UTF8Encoding]::new($false))
+                    $null = $project.VBComponents.Import($tempFile)
+                    Remove-Item $tempFile -Force
+                    Write-Host "    + Imported: $($file.Name)" -ForegroundColor Magenta
+                } else {
+                    $null = $project.VBComponents.Import($file.FullName)
+                    Write-Host "    + Imported: $($file.Name)" -ForegroundColor Magenta
+                }
+            } else {
+                # .cls and .frm files - import directly
+                $null = $project.VBComponents.Import($file.FullName)
+                Write-Host "    + Imported: $($file.Name)" -ForegroundColor Magenta
+            }
+            
+        } catch {
+            Write-Host "    - Failed: $($file.Name) - $_" -ForegroundColor Red
+            return $false
+        }
+    }
     
     Write-Host "    + All VBA components imported successfully" -ForegroundColor Green
     return $true
@@ -778,7 +883,7 @@ function Get-WordInfo {
         Write-Host "Documents open: $docCount" -ForegroundColor Gray
         
         if ($docCount -gt 0) {
-            Write-Host "Open Document Names:" -ForegroundColor Yellow
+            Write-Host "`nOpen Document Names:" -ForegroundColor Cyan
             $i = 1
             foreach ($doc in $WordApp.Documents) {
                 $result.Documents += $doc.Name
@@ -881,155 +986,6 @@ function Test-LoadedTemplate {
     }
 }
 
-function Get-TargetProject {
-    param(
-        [Parameter(Mandatory)]$WordApp,
-        [Parameter(Mandatory)]$WordAppInfo,
-        [string]$TemplateName,      # Name of template (if .dotm provided)
-        [string]$File              # Full path to .docm or .dotm
-    )
-
-    # Set default template name if not provided
-    if ($TemplateName -eq "" -or $null -eq $TemplateName) {
-        $TemplateName = "Wordbot.dotm"
-    }
-
-    # CASE 1: Check if template is loaded
-    $targetProject = Test-LoadedTemplate -WordAppInfo $WordAppInfo -TemplateName $TemplateName
-
-    Write-Host ""
-    if ($targetProject) {
-        # Template loaded but no document open
-        if ($WordAppInfo.DocumentCount -eq 0) {
-            Write-Host "No documents open. Create a new blank document?" -ForegroundColor Yellow
-            $choice = Read-Host "Choice (y/n)"
-            
-            if ($choice -eq 'y') {
-                $result = New-BlankDocument -WordApp $WordApp -WordAppInfo $WordAppInfo
-                return @{
-                    WordApp = $result.WordApp
-                    WordAppInfo = $result.WordAppInfo
-                    TargetProject = $targetProject  # Keep template project
-                }
-            } else {
-                Write-Host "Exiting without document." -ForegroundColor Red
-                exit 1
-            }
-        } else {
-            # Template loaded and documents exist
-            return @{
-                WordApp = $WordApp
-                WordAppInfo = $WordAppInfo
-                TargetProject = $targetProject
-            }
-        }
-    }
-
-    # CASE 2: This is the case when the template is not loaded and no document is open
-    if ($WordAppInfo.DocumentCount -eq 0) {
-        Write-Host "No documents open. Create a new blank document?" -ForegroundColor Yellow
-        $choice = Read-Host "Choice (y/n)"
-        
-        if ($choice -eq 'y') {
-            $result = New-BlankDocument -WordApp $WordApp -WordAppInfo $WordAppInfo
-            if ($result.TargetProject.Name -eq "Project") {
-                Write-Host "Project name renamed" -ForegroundColor Magenta
-                $result.TargetProject.Name = ([System.IO.Path]::GetFileNameWithoutExtension($TemplateName)+"Project")
-            }
-
-            return @{
-                WordApp = $result.WordApp
-                WordAppInfo = $result.WordAppInfo
-                TargetProject = $result.TargetProject  # Use the new document's project
-            }
-        } else {
-            Write-Host "Exiting without document." -ForegroundColor Red
-            exit 1
-        }
-    }
-
-    # CASE 3: Check if user provided a file in the list of open documents of not, use existing active document
-    if (-not [string]::IsNullOrEmpty($File)) {
-        $fileNameWithExtension = [System.IO.Path]::GetFileName($File)
-        $fileNameOnly = [System.IO.Path]::GetFileNameWithoutExtension($File)
-        
-        $targetDocument = $WordApp.Documents | Where-Object { 
-            $_.Name -eq $fileNameWithExtension -or $_.FullName -eq $File 
-        } | Select-Object -First 1
-        
-        if ($targetDocument) {
-            $targetProject = $targetDocument.VBProject
-            Write-Host "Found file in word:             '$fileNameWithExtension'" -ForegroundColor Green
-            Write-Host "File path of the found file:    '$($targetDocument.FullName)'" -ForegroundColor Gray
-            Write-Host "Project name:                   '$($targetProject.Name)'" -ForegroundColor Green
-            Write-Host "Matches with user file:         '$File'" -ForegroundColor Gray
-
-            return @{
-                WordApp = $WordApp
-                WordAppInfo = $WordAppInfo
-                TargetProject = $targetProject
-            }
-        } else {
-            Write-Host "The provided file '$fileNameWithExtension' is not open in Word." -ForegroundColor Red
-            Write-Host ""
-
-            # Show all open documents with numbers
-            Write-Host "But other Open Documents exists:" -ForegroundColor Yellow
-            $docIndex = 1
-            foreach ($doc in $WordApp.Documents) {
-                Write-Host "    $docIndex. $($doc.Name)" -ForegroundColor Gray
-                $docIndex++
-            }
-            Write-Host "    0. Create a new blank document" -ForegroundColor Gray
-            Write-Host ""
-
-            $choice = Read-Host "Select a document by number to work on that document"
-
-            if ($choice -eq '0') {
-                $result = New-BlankDocument -WordApp $WordApp -WordAppInfo $WordAppInfo
-                return @{
-                    WordApp = $result.WordApp
-                    WordAppInfo = $result.WordAppInfo
-                    TargetProject = $result.TargetProject
-                }
-            } else {
-                $selectedIndex = [int]$choice - 1
-                if ($selectedIndex -ge 0 -and $selectedIndex -lt $WordApp.Documents.Count) {
-                    $targetDocument = $WordApp.Documents.Item($selectedIndex + 1)
-                    $targetProject = $targetDocument.VBProject
-                    if ($targetProject.Name -eq "Project") {
-                        Write-Host "Project name renamed" -ForegroundColor Magenta
-                        $targetProject.Name = $fileNameOnly + "Project"
-                    }
-                    Write-Host "Selected: '$($targetDocument.Name)'" -ForegroundColor Green
-                    Write-Host "Project name: '$($targetProject.Name)'" -ForegroundColor Green
-                    return @{
-                        WordApp = $WordApp
-                        WordAppInfo = $WordAppInfo
-                        TargetProject = $targetProject
-                    }
-                } else {
-                    Write-Host "Invalid selection. Exiting." -ForegroundColor Red
-                    exit 1
-                }
-            }
-        }
-    } else {
-        Write-Host "Using existing active document: '$($WordAppInfo.ActiveDocument.Name)'" -ForegroundColor Green
-        $targetProject = $WordAppInfo.ActiveDocument.VBProject
-        if ($targetProject.Name -eq "Project") {
-            Write-Host "Project name renamed" -ForegroundColor Magenta
-            $targetProject.Name = ([System.IO.Path]::GetFileNameWithoutExtension($WordAppInfo.ActiveDocument.Name) + "Project")
-        }
-        Write-Host "Project name: '$($targetProject.Name)'" -ForegroundColor Green
-        return @{
-            WordApp = $WordApp
-            WordAppInfo = $WordAppInfo
-            TargetProject = $targetProject
-        }
-    }
-}
-
 function New-BlankDocument {
     param(
         [Parameter(Mandatory)]$WordApp,
@@ -1039,8 +995,10 @@ function New-BlankDocument {
     $targetDocument = $WordApp.Documents.Add()
     $targetProject = $targetDocument.VBProject
     
-    $WordApp.ActiveWindow.Visible = $true
-    $WordApp.ActiveWindow.WindowState = 1
+    if ($WordApp.ActiveWindow) {
+        $WordApp.ActiveWindow.Visible = $true
+        $WordApp.ActiveWindow.WindowState = 1 # wdWindowStateMaximize
+    }
     $WordApp.Activate()
     
     # Update WordAppInfo
@@ -1064,46 +1022,89 @@ function New-BlankDocument {
 function Get-VBACompileError {
     param(
         $WordApp,
+        $Project,
         [switch]$Verbose
     )
     
-    if ($Verbose) { Write-Host "[VERBOSE] Checking VBA compilation..." -ForegroundColor Cyan }
+    # 1. Make BE explicitly visible to ensure UI Automation and VBE commands work
+    $WordApp.VBE.MainWindow.Visible = $true
     
-    # Get the compile button
-    $compileButton = $WordApp.VBE.CommandBars.FindControl(1, 578)
+    # 2. Set active project
+    $Project.VBE.ActiveVBProject = $Project
     
-    if (-not $compileButton) {
-        if ($Verbose) { Write-Host "[VERBOSE] Compile button not found" -ForegroundColor Red }
-        return @{ Success = $false; Error = "Compile button not found in VBE"; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
+    # 3. FORCE VBE to open a code pane so the parser initializes
+    try {
+        if ($Project.VBComponents.Count -gt 0) {
+            # Opening the first standard module forces the VBE command bar to refresh its state
+            $firstComponent = $Project.VBComponents | Where-Object { $_.Type -eq 1 } | Select-Object -First 1
+            if ($firstComponent) {
+                $null = $firstComponent.CodePane.Show()
+            }
+        }
+    } catch {}
+    
+    Start-Sleep -Milliseconds 300
+
+    # 4. Query the Compile button
+    if ($Verbose) { Write-Host "[VERBOSE] Querying VBA compile button..." -ForegroundColor Cyan }
+    $compileButton = $WordApp.VBE.CommandBars.FindControl([int]1, [int]578)
+
+    if ($null -ne $compileButton) {
+        # Execute compile
+        try {
+            if ($Verbose) { Write-Host "[VERBOSE] Executing VBA compilation..." -ForegroundColor Cyan }
+            $compileButton.Execute()
+        } catch {
+            if ($Verbose) { Write-Host "[VERBOSE] Execute failed: $_" -ForegroundColor Red }
+        }
     }
     
-    if (-not $compileButton.Enabled) {
-        if ($Verbose) { Write-Host "[VERBOSE] No compilation needed (button disabled)" -ForegroundColor Green }
-        return @{ Success = $true; Error = $null; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
+    Start-Sleep -Milliseconds 250
+
+    # 5. Check if compilation succeeded!
+    # If no modal dialog pops up and the compile button is now disabled, it compiled cleanly.
+    if ($null -ne $compileButton -and -not $compileButton.Enabled) {
+        if ($Verbose) { Write-Host "[VERBOSE] VBA compilation succeeded cleanly!" -ForegroundColor Green }
+        return @{ 
+            Success          = $true
+            Error            = $null
+            Module           = $null
+            ModuleExtension  = $null
+            FullModuleName   = $null
+            ErrorLine        = $null
+            ErrorLineContent = $null
+        }
     }
+
+    # 6. If we reached here, compilation failed -> process error dialog
+    if ($Verbose) { Write-Host "[VERBOSE] Compilation failed - waiting for error dialog..." -ForegroundColor Red }
     
-    # Execute compile
-    if ($Verbose) { Write-Host "[VERBOSE] Compiling VBA project..." -ForegroundColor Cyan }
-    $compileButton.Execute()
-    
-    # Wait for dialog using UI Automation
     $messageBox = $null
-    $maxRetries = 10
+    $maxRetries = 30
     $retryCount = 0
     $moduleName = $null
     $moduleExtension = $null
     $errorLine = $null
     $errorLineContent = $null
+    $errorMsg = $null
     
     try {
         Add-Type -AssemblyName UIAutomationClient -ErrorAction Stop
     } catch {
         if ($Verbose) { Write-Host "[VERBOSE] UI Automation not available" -ForegroundColor Red }
-        return @{ Success = $false; Error = "UI Automation not available"; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
+        return @{ 
+            Success          = $false
+            Error            = "UI Automation not available"
+            Module           = $null
+            ModuleExtension  = $null
+            FullModuleName   = $null
+            ErrorLine        = $null
+            ErrorLineContent = $null
+        }
     }
     
     while ($retryCount -lt $maxRetries -and $null -eq $messageBox) {
-        Start-Sleep -Milliseconds 300
+        Start-Sleep -Milliseconds 150
         
         try {
             $condition = New-Object System.Windows.Automation.PropertyCondition(
@@ -1129,191 +1130,312 @@ function Get-VBACompileError {
         }
     }
     
-    # Get fresh reference to compile button
-    $compileButton = $WordApp.VBE.CommandBars.FindControl([Microsoft.Office.Core.MsoControlType]::msoControlButton, 578)
-    
-    if ($compileButton.Enabled) {
-        if ($Verbose) { Write-Host "[VERBOSE] Compilation failed" -ForegroundColor Red }
-        $errorMsg = $null
-        
-        # ============================================================
-        # Get module info from VBE
-        # ============================================================
-        if ($Verbose) { Write-Host "[VERBOSE] Getting module information from VBE..." -ForegroundColor Cyan }
-        
+    # Extract error message text from dialog
+    if ($null -ne $messageBox) {
         try {
-            if ($WordApp.VBE.ActiveCodePane) {
-                $codePane = $WordApp.VBE.ActiveCodePane
-                $codeModule = $codePane.CodeModule
-                
-                $moduleName = $codeModule.Name
-                if ($Verbose) { Write-Host "[VERBOSE] Active module: $moduleName" -ForegroundColor Green }
-                
-                # Get module extension
-                try {
-                    $vbaProject = $WordApp.VBE.ActiveVBProject
-                    foreach ($component in $vbaProject.VBComponents) {
-                        if ($component.Name -eq $moduleName) {
-                            $moduleType = $component.Type
-                            switch ($moduleType) {
-                                1 { $moduleExtension = ".bas" }
-                                2 { $moduleExtension = ".cls" }
-                                3 { $moduleExtension = ".frm" }
-                                100 { $moduleExtension = ".doc" }
-                                default { $moduleExtension = ".unknown" }
-                            }
-                            if ($Verbose) { Write-Host "[VERBOSE] Module extension: $moduleExtension" -ForegroundColor Cyan }
-                            break
-                        }
+            $textCondition = New-Object System.Windows.Automation.PropertyCondition(
+                [System.Windows.Automation.AutomationElement]::AutomationIdProperty, "65535"
+            )
+            $textElement = $messageBox.FindFirst(
+                [System.Windows.Automation.TreeScope]::Descendants, $textCondition
+            )
+            
+            if ($null -ne $textElement) {
+                $errorMsg = $textElement.Current.Name
+            } else {
+                $allElements = $messageBox.FindAll([System.Windows.Automation.TreeScope]::Descendants, 
+                    [System.Windows.Automation.Condition]::TrueCondition)
+                foreach ($element in $allElements) {
+                    $name = $element.Current.Name
+                    if ($name -and $name.Trim().Length -gt 0 -and $name -notlike "*OK*" -and $name -notlike "*Cancel*") {
+                        $errorMsg = $name
+                        break
                     }
-                } catch {}
-                
-                # ============================================================
-                # Find the ACTUAL error line
-                # ============================================================
-                try {
-                    # Method 1: Get selection (what's highlighted)
-                    $selection = $codePane.GetSelection(1, 1, 1, 1)
-                    if ($selection) {
-                        $errorLine = $selection.TopLine
-                        if ($Verbose) { Write-Host "[VERBOSE] Selection line: $errorLine" -ForegroundColor Cyan }
-                    }
-                } catch {
-                    if ($Verbose) { Write-Host "[VERBOSE] Could not get selection: $($_.Exception.Message)" -ForegroundColor Yellow }
-                }
-                
-                # Method 2: Check TopLine for problematic patterns
-                if (-not $errorLine) {
-                    try {
-                        $topLine = $codePane.TopLine
-                        if ($topLine -gt 0) {
-                            $lineToCheck = $codeModule.Lines($topLine, 1)
-                            $problematicPatterns = @(
-                                "*ParentNode As node*",
-                                "*Children As Collection*",
-                                "*ParentNode As*",
-                                "*Public *"
-                            )
-                            foreach ($pattern in $problematicPatterns) {
-                                if ($lineToCheck -like $pattern -and $topLine -gt 5) {
-                                    $errorLine = $topLine
-                                    $errorLineContent = $lineToCheck
-                                    if ($Verbose) { Write-Host "[VERBOSE] Found error line from TopLine: $errorLine" -ForegroundColor Cyan }
-                                    break
-                                }
-                            }
-                        }
-                    } catch {}
-                }
-                
-                # Method 3: Search entire module for problematic patterns
-                if (-not $errorLine) {
-                    try {
-                        $totalLines = $codeModule.CountOfLines
-                        $problematicPatterns = @(
-                            "*ParentNode As node*",
-                            "*Children As Collection*",
-                            "*ParentNode As*",
-                            "*Public *"
-                        )
-                        
-                        for ($i = 1; $i -le [Math]::Min($totalLines, 50); $i++) {
-                            $line = $codeModule.Lines($i, 1)
-                            foreach ($pattern in $problematicPatterns) {
-                                if ($line -like $pattern -and $i -gt 5) {
-                                    $errorLine = $i
-                                    $errorLineContent = $line
-                                    if ($Verbose) { Write-Host "[VERBOSE] Found pattern '$pattern' at line: $errorLine" -ForegroundColor Cyan }
-                                    break
-                                }
-                            }
-                            if ($errorLine) { break }
-                        }
-                    } catch {}
-                }
-                
-                if ($Verbose -and $errorLine) {
-                    Write-Host "[VERBOSE] Error line content: $errorLineContent" -ForegroundColor Yellow
                 }
             }
-        } catch {
-            if ($Verbose) { Write-Host "[VERBOSE] Could not get module info: $($_.Exception.Message)" -ForegroundColor Red }
-        }
+        } catch {}
         
-        # ============================================================
-        # Get error text from dialog
-        # ============================================================
-        if ($null -ne $messageBox) {
-            try {
-                $textCondition = New-Object System.Windows.Automation.PropertyCondition(
-                    [System.Windows.Automation.AutomationElement]::AutomationIdProperty, "65535"
-                )
-                $textElement = $messageBox.FindFirst(
-                    [System.Windows.Automation.TreeScope]::Descendants, $textCondition
-                )
+        # Close error dialog via Win32
+        try {
+            if (-not ("User32CompileApi" -as [type])) {
+                Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class User32CompileApi {
+[DllImport("user32.dll", SetLastError = true)]
+public static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string lpszClass, string lpszWindow);
+
+[DllImport("user32.dll", SetLastError = true)]
+public static extern uint SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+public const uint BM_CLICK = 0x00F5;
+}
+"@ -ErrorAction SilentlyContinue
+            }
                 
-                if ($null -ne $textElement) {
-                    $errorMsg = $textElement.Current.Name
-                } else {
-                    $allElements = $messageBox.FindAll([System.Windows.Automation.TreeScope]::Descendants, 
-                        [System.Windows.Automation.Condition]::TrueCondition)
-                    foreach ($element in $allElements) {
-                        $name = $element.Current.Name
-                        if ($name -and $name.Trim().Length -gt 0 -and $name -notlike "*OK*" -and $name -notlike "*Cancel*") {
-                            $errorMsg = $name
-                            break
+            $hwnd = [IntPtr]$messageBox.Current.NativeWindowHandle
+            $okHwnd = [User32CompileApi]::FindWindowEx($hwnd, [IntPtr]::Zero, "Button", "OK")
+            
+            if ($okHwnd -ne [IntPtr]::Zero) {
+                [User32CompileApi]::SendMessage($okHwnd, [User32CompileApi]::BM_CLICK, [IntPtr]::Zero, [IntPtr]::Zero)
+                if ($Verbose) { Write-Host "[VERBOSE] Error dialog closed" -ForegroundColor Green }
+            }
+        } catch {
+            if ($Verbose) { Write-Host "[VERBOSE] Could not close dialog: $($_.Exception.Message)" -ForegroundColor Yellow }
+        }
+    }
+    
+    # Retrieve active module and line coordinates highlighted by VBE compiler
+    Start-Sleep -Milliseconds 150
+    
+    if ($Verbose) { Write-Host "[VERBOSE] Getting error line from VBE..." -ForegroundColor Cyan }
+    
+    try {
+        if ($WordApp.VBE.ActiveCodePane) {
+            $codePane = $WordApp.VBE.ActiveCodePane
+            $codeModule = $codePane.CodeModule
+            
+            $moduleName = $codeModule.Name
+            if ($Verbose) { Write-Host "[VERBOSE] Active module: $moduleName" -ForegroundColor Green }
+            
+            # Retrieve module extension
+            try {
+                $vbaProject = $WordApp.VBE.ActiveVBProject
+                foreach ($component in $vbaProject.VBComponents) {
+                    if ($component.Name -eq $moduleName) {
+                        $moduleType = $component.Type
+                        switch ($moduleType) {
+                            1 { $moduleExtension = ".bas" }
+                            2 { $moduleExtension = ".cls" }
+                            3 { $moduleExtension = ".frm" }
+                            100 { $moduleExtension = ".doc" }
+                            default { $moduleExtension = ".unknown" }
                         }
+                        if ($Verbose) { Write-Host "[VERBOSE] Module extension: $moduleExtension" -ForegroundColor Cyan }
+                        break
                     }
                 }
             } catch {}
             
-            # Close dialog
+            # Extract line number via VBE GetSelection ref variables
             try {
-                Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class User32 {
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string lpszClass, string lpszWindow);
-    
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern uint SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-    
-    public const uint BM_CLICK = 0x00F5;
-}
-"@ -ErrorAction SilentlyContinue
+                $sl = 0; $sc = 0; $el = 0; $ec = 0
+                $codePane.GetSelection([ref]$sl, [ref]$sc, [ref]$el, [ref]$ec)
                 
-                $hwnd = [IntPtr]$messageBox.Current.NativeWindowHandle
-                $okHwnd = [User32]::FindWindowEx($hwnd, [IntPtr]::Zero, "Button", "OK")
-                
-                if ($okHwnd -ne [IntPtr]::Zero) {
-                    [User32]::SendMessage($okHwnd, [User32]::BM_CLICK, [IntPtr]::Zero, [IntPtr]::Zero)
+                if ($sl -gt 0) {
+                    $errorLine = $sl
+                    $errorLineContent = $codeModule.Lines($errorLine, 1).Trim()
+                    if ($Verbose) { Write-Host "[VERBOSE] Error line from VBE selection: $errorLine" -ForegroundColor Green }
+                    if ($Verbose) { Write-Host "[VERBOSE] Line content: $errorLineContent" -ForegroundColor Yellow }
                 }
-            } catch {}
-        }
-        
-        $result = @{ 
-            Success = $false
-            Error = if ($errorMsg) { $errorMsg.Trim() } else { "Unknown compile error" }
-            Module = $moduleName
-            ModuleExtension = $moduleExtension
-            FullModuleName = if ($moduleName -and $moduleExtension) { "$moduleName$moduleExtension" } else { $moduleName }
-            ErrorLine = $errorLine
-            ErrorLineContent = $errorLineContent
-        }
-        
-        if ($Verbose) {
-            Write-Host "[VERBOSE] Error: $($result.Error)" -ForegroundColor Cyan
-            Write-Host "[VERBOSE] Module: $($result.FullModuleName)" -ForegroundColor Green
-            Write-Host "[VERBOSE] Line: $($result.ErrorLine)" -ForegroundColor Cyan
-            if ($errorLineContent) {
-                Write-Host "[VERBOSE] Line content: $errorLineContent" -ForegroundColor Yellow
+            } catch {
+                if ($Verbose) { Write-Host "[VERBOSE] Could not get VBE selection: $($_.Exception.Message)" -ForegroundColor Yellow }
             }
         }
-        return $result
-        
-    } else {
-        if ($Verbose) { Write-Host "[VERBOSE] Compilation successful" -ForegroundColor Green }
-        return @{ Success = $true; Error = $null; Module = $null; ModuleExtension = $null; ErrorLine = $null; ErrorLineContent = $null }
+    } catch {
+        if ($Verbose) { Write-Host "[VERBOSE] Could not get module info: $($_.Exception.Message)" -ForegroundColor Red }
+    }
+    
+    $sanitizedError = if ($errorMsg) { 
+        ($errorMsg -replace '[\r\n]+', ' ' -replace '\s+', ' ').Trim() 
+    } else { 
+        "Unknown compile error" 
+    }
+
+    $result = @{ 
+        Success          = $false
+        Error            = $sanitizedError
+        Module           = $moduleName
+        ModuleExtension  = $moduleExtension
+        FullModuleName   = if ($moduleName -and $moduleExtension) { "$moduleName$moduleExtension" } else { $moduleName }
+        ErrorLine        = $errorLine
+        ErrorLineContent = $errorLineContent
+    }
+    
+    if ($Verbose) {
+        Write-Host "[VERBOSE] Error: $($result.Error)" -ForegroundColor Cyan
+        Write-Host "[VERBOSE] Module: $($result.FullModuleName)" -ForegroundColor Green
+        Write-Host "[VERBOSE] Line: $($result.ErrorLine)" -ForegroundColor Cyan
+        if ($errorLineContent) {
+            Write-Host "[VERBOSE] Line content: $errorLineContent" -ForegroundColor Yellow
+        }
+    }
+
+    return $result
+}
+
+function Get-VBAListForEdition {
+    param (
+        [string]$VBAFolder,
+        [string]$Edition
+    )
+    
+    # Base Markdown modules required by all editions
+    $modules = @(
+        "Markdown_Main.bas", "MarkdownCleanup.bas", "MarkdownCodeblock.bas",
+        "MarkdownHeadersStyle.bas", "MarkdownLatex.bas", "MarkdownLinks.bas",
+        "MarkdownListBullet.bas", "MarkdownTable.bas", "MarkdownTextStyle.bas",
+        "MarkdownUnicode.bas", "aWordbotCommonFunctions.bas","HeadingNumbers.bas"
+    )
+
+    if ($Edition -eq "LLM" -or $Edition -eq "Research") {
+        $modules += @("aPythonTask.bas", "aWordbotRibbonLLMFunctions.bas","aWordbotJsonParser.bas", "aWordbot_Main.bas","aWordbotRibbonKeytip.bas")
+    }
+
+    if ($Edition -eq "Research") {
+        $modules += @("aWordbot_Research.bas", "aWordbot_ResearchCitation.bas")
+    }
+
+    return $modules | ForEach-Object { Join-Path $VBAFolder $_ }
+}
+
+function Invoke-ScriptCleanup {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        $WordApp,
+
+        [Parameter(Mandatory = $false)]
+        $Document
+    )
+    
+    Write-Host "`nCleaning up resources..." -ForegroundColor Yellow
+    
+    if ($Document) { 
+        Close-Document -Document $Document | Out-Null
+    }
+    
+    if ($WordApp) { 
+        Close-WordApplication -WordApp $WordApp | Out-Null
+    }
+}
+
+function Test-UserConfirmation {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+        [switch]$Force
+    )
+
+    if ($Force) {
+        Write-Host "$Message (y/n): y [Forced]" -ForegroundColor Cyan
+        return $true
+    }
+
+    Write-Host ""
+    Write-Host $Message -ForegroundColor Yellow
+    Write-Host "    You can either choose:"
+    Write-Host "        y- Proceed (macros will be updated/overwritten)" -ForegroundColor Magenta
+    Write-Host "        n- Do not proceed and stop" -ForegroundColor Magenta
+    Write-Host ""
+
+    $choice = Read-Host "Choice (y/n)"
+    if ($choice.Trim().ToLower() -eq 'y') {
+        return $true
+    }
+
+    Write-Host "Stopping script" -ForegroundColor Red
+    return $false
+}
+
+function Get-OpenTargetDocument {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        $WordApp,
+        [Parameter(Mandatory = $true)]
+        [string]$FullFilePath,
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedProjectName,
+        [Parameter(Mandatory = $true)]
+        [string]$FileName,
+        [switch]$Force
+    )
+
+    $doc = $null
+    $isNew = $false
+    $fileExists = Test-Path $FullFilePath
+
+    # 1. Match by exact VBA project name across active open documents/templates
+    foreach ($openDoc in $WordApp.Documents) {
+        try {
+            if ($openDoc.VBProject.Name -eq $ExpectedProjectName) {
+                $doc = $openDoc
+                Write-Host "    + Found open live project: $($doc.Name) (Project: $ExpectedProjectName)" -ForegroundColor Green
+                
+                # Bring Word to focus so the user sees the active document
+                $WordApp.Visible = $true
+                if ($WordApp.ActiveWindow) {
+                    $WordApp.ActiveWindow.WindowState = 1 # Maximize
+                }
+                $WordApp.Activate()
+
+                $confirmed = Test-UserConfirmation -Message "IMPORTANT!!: The project '$ExpectedProjectName' is currently active in Word (Document: '$($doc.Name)')." -Force:$Force
+                if (-not $confirmed) {
+                    return @{
+                        Document = $null
+                        IsNewDocument = $null
+                        ClearVars = $true
+                    }
+                }
+                break
+            }
+        } catch {}
+    }
+
+    # 2. Match by full file path if not already caught by project name
+    if (-not $doc) {
+        foreach ($openDoc in $WordApp.Documents) {
+            if ($openDoc.FullName -eq $FullFilePath) {
+                $doc = $openDoc
+                Write-Host "    + Document already open by path: $FullFilePath" -ForegroundColor Gray
+                break
+            }
+        }
+    }
+    
+    # 3. Fallback to opening from disk or creating a blank document
+    if (-not $doc) {
+        if ($fileExists) {
+            Write-Host "    + Opening existing document: $FullFilePath" -ForegroundColor Yellow
+            $doc = $WordApp.Documents.Open($FullFilePath)
+            
+            # Make visible and focus window BEFORE prompting user
+            $WordApp.Visible = $true
+            if ($WordApp.ActiveWindow) {
+                $WordApp.ActiveWindow.WindowState = 1 # Maximize
+            }
+            $WordApp.Activate()
+
+            $confirmed = Test-UserConfirmation -Message "IMPORTANT!!: The file '$FullFilePath' already exists on disk." -Force:$Force
+            if (-not $confirmed) {
+                return @{
+                    Document = $null
+                    IsNewDocument = $null
+                    ClearVars = $true
+                }
+            }
+        } else {
+            Write-Host "`nNo existing files found or loaded with name '$FileName'" -ForegroundColor Cyan
+            Write-Host "    + Creating new blank document..." -ForegroundColor Yellow
+            
+            $WordAppInfo = Get-WordInfo -WordApp $WordApp -ReturnObjects
+            $result = New-BlankDocument -WordApp $WordApp -WordAppInfo $WordAppInfo
+            
+            $doc = if ($result.ActiveDocument) { $result.ActiveDocument } else { $WordApp.ActiveDocument }
+            $isNew = $true
+            
+            if ($result.TargetProject.Name -eq "Project") {
+                $result.TargetProject.Name = $ExpectedProjectName
+                Write-Host "    Project name renamed to '$ExpectedProjectName'" -ForegroundColor Magenta
+            }
+        }
+    }
+
+    return @{
+        Document = $doc
+        IsNewDocument = $isNew
+        ClearVars = $false
     }
 }

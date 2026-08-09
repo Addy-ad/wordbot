@@ -1,0 +1,118 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
+  <ribbon>
+    <tabs>
+      <tab id="MyCustomTab" label="Wordbot Research">
+        <group id="MyGroup1" label=" ">
+          <button 
+            id="btnStartServer" 
+            label="Start Python Backend" 
+            onAction="RibbonProxy_StartServer" 
+            imageMso="RunDialog" 
+            size="large" />
+        </group>
+        <group id="MyGroup2" label="Wordbot LLM options">
+          <button 
+            id="btnRun" 
+            label="Run" 
+            onAction="RibbonProxy_AICommand" 
+            imageMso="MailMergeGoToNextRecord" 
+            size="large" 
+            getScreentip="GetScreentip_AICommand" 
+            supertip="Process selection using AI" />
+          <button 
+            id="btnExpand" 
+            label="Expand" 
+            onAction="RibbonProxy_AICommand" 
+            imageMso="ZoomPageWidth" 
+            size="large" 
+            getScreentip="GetScreentip_AICommand" 
+            supertip="Expand selection using AI" />
+          <button 
+            id="btnSummarize" 
+            label="Summarize" 
+            onAction="RibbonProxy_AICommand" 
+            imageMso="AutoSummarize" 
+            size="large" 
+            getScreentip="GetScreentip_AICommand" 
+            supertip="Summarize selection using AI" />
+          <button 
+            id="btnFixGrammar" 
+            label="Fix Grammar" 
+            onAction="RibbonProxy_AICommand" 
+            imageMso="SpellingAndGrammar" 
+            size="large" 
+            getScreentip="GetScreentip_AICommand" 
+            supertip="Correct grammar and style of selection using AI" />
+          <button 
+            id="btnTranslate" 
+            label="Translate" 
+            onAction="RibbonProxy_AICommand" 
+            imageMso="TranslateMenu" 
+            size="large" 
+            getScreentip="GetScreentip_AICommand" 
+            supertip="Translate text from another language to English using AI" />
+          <button 
+            id="btnDefine" 
+            label="Define" 
+            onAction="RibbonProxy_AICommand" 
+            imageMso="ReadingViewResearchPane" 
+            size="large" 
+            getScreentip="GetScreentip_AICommand" 
+            supertip="Define/explain the selected word/phrase using AI" />
+          <button 
+            id="btnCustom" 
+            label="Custom instruction" 
+            onAction="RibbonProxy_AICommand" 
+            imageMso="FileProperties" 
+            size="large" 
+            getScreentip="GetScreentip_AICommand" 
+            supertip="Run a custom prompt on your selection or current cursor position" />
+        </group>
+        <group id="MyGroup3" label=" ">
+          <button 
+            id="btnResearch" 
+            label="Zotero Research" 
+            onAction="RibbonProxy_Research" 
+            imageMso="SearchLibraries" 
+            size="large" 
+            getScreentip="GetScreentip_AICommand" 
+            supertip="Semantic search the Zotero library using ZotSeek using selected context" />
+        </group>
+        <group id="MyGroup4" label="Manual Format and Style">
+          <button 
+            id="btnHeaderNumber" 
+            label="Heading Numbers" 
+            onAction="RibbonProxy_HeadingNumber" 
+            imageMso="MultilevelListGallery" 
+            size="large" 
+            screentip="Heading Numbers" 
+            supertip="Apply or update multilevel heading numbers to your document headings" />
+          <button 
+            id="btnFormatTest" 
+            label="Format Markdown" 
+            onAction="RibbonProxy_FormatMarkdown" 
+            imageMso="TableFormatPublisher" 
+            size="large" 
+            screentip="Format Markdown" 
+            supertip="Convert and apply Markdown-style formatting to the selected text" />
+          <button 
+            id="btnConvertCitations" 
+            label="Convert Citations" 
+            onAction="RibbonProxy_ConvertCitations" 
+            imageMso="CircularReferences" 
+            size="large" 
+            screentip="Convert Citations" 
+            supertip="Convert unprocessed 'zotero://XXXXXXXX' tags to a proper word citations" />
+          <button 
+            id="btnUpdateCitations" 
+            label="Update Citations" 
+            onAction="RibbonProxy_UpdateCitations" 
+            imageMso="FlyoutAnchorPowerQueryRefresh" 
+            size="large" 
+            screentip="Update Citations" 
+            supertip="Refresh and update citation numbers in the document with latest source information" />
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>

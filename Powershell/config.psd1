@@ -19,19 +19,26 @@
     # Relative paths (resolved against the location of installWordBotTemplate.ps1):
     # Directory containing raw VBA source modules (.bas, .cls, .frm)
     VBAFolderRelativePath    = 'Resources\WordVBAmacros'
-    
+
     # Custom Office UI Ribbon layout definition XML
-    RibbonXmlRelativePath    = 'Resources\WordbotRibbon.xml'
+    RibbonXmlRelativePath    = 'Resources\RibbonXML'
     
     # Entry point script for the background Python server process
     PythonServerLocation     = '..\Python\main.py'
 
     # Target Python environment configuration:
-    #   - Leave empty ('') to auto-detect system Python via PATH. If dependencies listed in
-    #     requirements.txt (located in the same folder as PythonServerLocation) are missing,
-    #     you will be prompted to install them globally or create a virtual environment via GUI.
-    #   - Specify a directory path (e.g., 'D:\Python\venvWordbot') to target or auto-initialize
-    #     a virtual environment where requirements.txt dependencies will be installed.
-    #   - Specify a full executable path (e.g., 'C:\Python311\python.exe') to target a specific binary.
+    #   Option 1: Auto-detect - uses Python from system PATH
+    #     If dependencies are missing, you'll be prompted to install globally or create a venv via GUI
+    #     PythonExeLocation = ''
+    #
+    #   Option 2: Virtual environment folder - uses or creates a venv at the specified directory
+    #     Dependencies will be installed inside this isolated environment
+    #     PythonExeLocation = 'D:\wordbotTemp'
+    #
+    #   Option 3: Specific Python executable - points directly to a Python interpreter
+    #     Can be system Python (C:\Python39\python.exe) OR a venv's python.exe
+    #     To use specific Python version with venv: create venv first, then point to its python.exe
+    #     PythonExeLocation = 'C:\Python311\python.exe'
+    #     PythonExeLocation = 'D:\myproject\venv\Scripts\python.exe'
     PythonExeLocation        = ''
 }
