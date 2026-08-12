@@ -9,6 +9,8 @@ Wordbot: The Word plugin that formats Markdown, talks to AI, and searches your r
 
 ## Quick Start
 
+Check the user guide ([WordbotUserGuide.md](Docs/WordbotUserGuide.md)) on all the features of wordbot and how it works.
+
 > [!TIP]
 > Choose your operating system and follow the instructions.
 
