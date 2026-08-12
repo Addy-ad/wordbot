@@ -40,6 +40,11 @@
     
     Default: $false
 
+.PARAMETER RemovePersonalInfo
+    Strips personal metadata (author details, document properties) from the built template
+    upon saving and invokes the Document Inspector job during save operations.
+    Default: $false
+
 .EXAMPLE
     .\installWordBotTemplate.ps1 -Edition Markdown
     Installs the Markdown edition with default settings. Python paths are updated (since
@@ -49,6 +54,11 @@
     .\installWordBotTemplate.ps1 -Edition LLM -Force
     Installs the LLM edition and forces overwrite of existing files without prompting.
     Python paths are updated. Safety prompts for Word running and .docm warnings remain.
+
+.EXAMPLE
+    .\installWordBotTemplate.ps1 -Edition Research -RemovePersonalInfo
+    Installs the Research edition and automatically removes personal information/metadata 
+    from the output file before saving.
 
 .EXAMPLE
     .\installWordBotTemplate.ps1 -Edition Research -UpdatePythonPaths:$false
@@ -61,9 +71,9 @@
     Equivalent to running without -Force.
 
 .EXAMPLE
-    .\installWordBotTemplate.ps1 -Edition LLM -UpdatePythonPaths:$false -Force
-    Installs the LLM edition without updating Python paths, but forces file overwrites.
-    Useful for quick rebuilds when only VBA code has changed.
+    .\installWordBotTemplate.ps1 -Edition LLM -UpdatePythonPaths:$false -Force -RemovePersonalInfo:$true
+    Installs the LLM edition without updating Python paths, forces file overwrites, and
+    strips personal information during the build save.
 
 .EXAMPLE
     .\installWordBotTemplate.ps1 -Edition Markdown -UpdatePythonPaths
@@ -144,6 +154,7 @@ trap {
 # Default when running as script when running in VScode. 
 if (-not $PSBoundParameters.ContainsKey('Edition')) { $Edition = "Research" }
 if (-not $PSBoundParameters.ContainsKey('Force')) { $Force = $false }
+if (-not $PSBoundParameters.ContainsKey('RemovePersonalInfo')) { $RemovePersonalInfo = $false }
 # Default to updating Python paths when running the script directly
 if (-not $PSBoundParameters.ContainsKey('UpdatePythonPaths')) { $UpdatePythonPaths = $true }
 if ($PSBoundParameters.Count -eq 0) { Clear-Host }
@@ -297,7 +308,7 @@ Write-Host "    + Word and document ready" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Step 6: Saving document..." -ForegroundColor Yellow
 
-if (-not (Save-Document -Document $doc -FilePath $paths.fullFilePath -WordPID $word.ProcessID)) {
+if (-not (Save-Document -Document $doc -FilePath $paths.fullFilePath -WordPID $word.ProcessID -RemovePersonalInfo:$RemovePersonalInfo)) {
     Write-Host "    - Failed to save. Cleaning up..." -ForegroundColor Red
     Invoke-ScriptCleanup -WordApp $word -Document $doc 
     exit 1
@@ -312,7 +323,7 @@ $vbaModulesToImport = Get-VBAListForEdition -VBAFolder $paths.VBAFolder -Edition
 $importResult = Import-VBAComponents -project $project -VBAList $vbaModulesToImport -pythonExe $pythonExe -pythonServerPath $paths.pythonServerPath -UpdatePythonPaths:$UpdatePythonPaths
 
 if ($importResult) {
-    Save-Document -Document $doc -FilePath $paths.fullFilePath -WordPID $word.ProcessID | Out-Null
+    Save-Document -Document $doc -FilePath $paths.fullFilePath -WordPID $word.ProcessID -RemovePersonalInfo:$RemovePersonalInfo | Out-Null
 } else {
     Write-Host "    - Failed to import VBA components." -ForegroundColor Red
     Invoke-ScriptCleanup -WordApp $word -Document $doc

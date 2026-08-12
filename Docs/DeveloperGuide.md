@@ -43,6 +43,7 @@ The toolchain consists of three PowerShell scripts located in the `Powershell/` 
 
 - **Edition**: Selects which Wordbot version to build or update (Markdown, LLM, or Research).
 - **Force**: Skips file overwrite prompts but preserves critical safety warnings like unsaved Word documents.
+- **RemovePersonalInfo**: Strips personal metadata (author details, document properties) from output templates during save.
 - **ContinueOnError**: Continues building remaining editions even if one fails. Only applies to BuildAllEditions.ps1.
 - **Silent**: Suppresses detailed console output, showing only progress and errors. Only applies to BuildAllEditions.ps1.
 - **UpdatePythonPaths**: Updates Python executable and server paths in VBA code by replacing placeholders with actual paths.
@@ -126,7 +127,7 @@ The `config.psd1` file controls all aspects of the build process:
 **Purpose**: Build and install a VBA template into Word.
 
 ```powershell
-.\installWordBotTemplate.ps1 [-Edition <Markdown|LLM|Research>] [-UpdatePythonPaths] [-Force]
+.\installWordBotTemplate.ps1 [-Edition <Markdown|LLM|Research>] [-UpdatePythonPaths] [-RemovePersonalInfo] [-Force]
 ```
 
 **Parameters**:
@@ -135,16 +136,20 @@ The `config.psd1` file controls all aspects of the build process:
 |-----------|------|-------------|---------|
 | `-Edition` | String | Edition to install: Markdown, LLM, or Research | Markdown |
 | `-UpdatePythonPaths` | Switch | Update Python paths in VBA code | On (when run directly) |
+| `-RemovePersonalInfo` | Switch | Strip personal metadata from output file | Off |
 | `-Force` | Switch | Skip file overwrite prompts | Off |
 
 **Examples**:
 
 ```powershell
-# Run with defaults (Edition=Markdown, UpdatePythonPaths=On, Force=Off)
+# Run with defaults (Edition=Markdown, UpdatePythonPaths=On, Force=Off, RemovePersonalInfo=Off)
 .\installWordBotTemplate.ps1
 
 # Install LLM edition with Python paths updated
 .\installWordBotTemplate.ps1 -Edition LLM
+
+# Install Research edition and strip personal information
+.\installWordBotTemplate.ps1 -Edition Research -RemovePersonalInfo
 
 # Install Research edition without updating Python paths
 .\installWordBotTemplate.ps1 -Edition Research -UpdatePythonPaths:$false
@@ -234,7 +239,7 @@ The `config.psd1` file controls all aspects of the build process:
 **Purpose**: Automatically build all three editions in one go.
 
 ```powershell
-.\BuildAllEditions.ps1 [-Editions <string[]>] [-UpdatePythonPaths] [-Force] [-ContinueOnError] [-Silent] [-LogPath <string>]
+.\BuildAllEditions.ps1 [-Editions <string[]>] [-UpdatePythonPaths] [-RemovePersonalInfo] [-Force] [-ContinueOnError] [-Silent] [-LogPath <string>]
 ```
 
 **Parameters**:
@@ -243,6 +248,7 @@ The `config.psd1` file controls all aspects of the build process:
 |-----------|------|-------------|---------|
 | `-Editions` | String | Editions to build: Markdown, LLM, Research | All three |
 | `-UpdatePythonPaths` | Switch | Update Python paths in VBA code | Off |
+| `-RemovePersonalInfo` | Switch | Strip personal metadata from built templates | On (when run directly) |
 | `-Force` | Switch | Skip file overwrite prompts | On (when run directly) |
 | `-ContinueOnError` | Switch | Continue if one edition fails | On (when run directly) |
 | `-Silent` | Switch | Suppress detailed console output | On (when run directly) |
@@ -280,11 +286,11 @@ The `config.psd1` file controls all aspects of the build process:
 
 When you run any script without parameters (e.g., pressing F5 in VSCode), it uses these defaults:
 
-| Script | Default Edition | Force | ContinueOnError | Silent | UpdatePythonPaths |
-|--------|-----------------|-------|-----------------|--------|-------------------|
-| `installWordBotTemplate.ps1` | Markdown | Off | N/A | N/A | On |
-| `docLiveUpdateMacros.ps1` | Markdown | Off | N/A | N/A | On |
-| `BuildAllEditions.ps1` | All three | On | On | On | Off |
+| Script | Default Edition | Force | RemovePersonalInfo | ContinueOnError | Silent | UpdatePythonPaths |
+|--------|-----------------|-------|--------------------|-----------------|--------|-------------------|
+| `installWordBotTemplate.ps1` | Markdown | Off | Off | N/A | N/A | On |
+| `docLiveUpdateMacros.ps1` | Markdown | Off | N/A | N/A | N/A | On |
+| `BuildAllEditions.ps1` | All three | On | On | On | On | Off |
 
 These defaults can be changed inside respective scripts. for example look for these lines inside `docLiveUpdateMacros.ps1` to change defaults.
 

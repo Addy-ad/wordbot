@@ -80,9 +80,14 @@ def research():
 
     # First, group all results by itemKey
     for idx, item in enumerate(all_results, 1):
-        snippet = item.get('matchedChunk', {}).get('snippet', '')
+        matched_chunk = item.get('matchedChunk') or {}
+        snippet = matched_chunk.get('snippet', '')
+        
+        if not snippet:
+            continue
+        
+        page = matched_chunk.get('page', None)
         item_key = item.get('itemKey', '')
-        page = item.get('matchedChunk', {}).get('page', None)
         title = item.get('title', '')
         authors = item.get('authors', '')
         year = item.get('year', '')

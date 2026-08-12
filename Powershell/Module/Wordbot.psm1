@@ -532,7 +532,8 @@ function Save-Document {
     param(
         $Document,
         $FilePath,
-        [int]$WordPID
+        [int]$WordPID = 0,
+        [switch]$RemovePersonalInfo
     )
     
     $extension = [System.IO.Path]::GetExtension($FilePath)
@@ -540,17 +541,24 @@ function Save-Document {
     
     $dismissJob = $null
     try {
-        $Document.RemovePersonalInformation = $true
-        
-        $dismissJob = Start-DocumentInspectorDismissJob -WordPID $WordPID
+        if ($RemovePersonalInfo) {
+            $Document.RemovePersonalInformation = $true
+            if ($WordPID -gt 0) {
+                $dismissJob = Start-DocumentInspectorDismissJob -WordPID $WordPID
+            }
+        }
         
         $Document.SaveAs2([ref][System.Object]$FilePath, [ref][System.Object]$format, [ref]$false)
         Write-Host "    + Document saved: $FilePath" -ForegroundColor Green
         
-        Stop-DocumentInspectorJob -Job $dismissJob
+        if ($dismissJob) {
+            Stop-DocumentInspectorJob -Job $dismissJob
+        }
         return $true
     } catch {
-        Stop-DocumentInspectorJob -Job $dismissJob
+        if ($dismissJob) {
+            Stop-DocumentInspectorJob -Job $dismissJob
+        }
         Write-Host "    - Failed to save document: $_" -ForegroundColor Red
         return $false
     }

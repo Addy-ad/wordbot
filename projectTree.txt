@@ -3,9 +3,37 @@ Wordbot/
 │   projectTree.txt                                    # Project structure reference
 │   Readme.md                                          # Main documentation and user guide
 │
+├───Docs                                               # Documentation files
+│   │   DeveloperGuide.md                              # Developer documentation
+│   │   InstallationMacOS.md                           # macOS installation instructions
+│   │   InstallationWindows.md                         # Windows installation instructions
+│   │   PythonGuide.md                                 # Python setup and usage guide
+│   │   WordbotUserGuide.md                            # End-user manual
+│   │   ZoteroGuide.md                                 # Zotero integration guide
+│   │
+│   └───Media                                          # Media assets for documentation
+│           ExampleEquations.png
+│           ExampleFormatting.png
+│           ExampleTableCreation.png
+│           FormatMarkdownButton.png
+│           HeadingNumberButton.png
+│           HeadingNumbers.png
+│           LLMButtons.png
+│           ManualButtons.png
+│           PythonExe.png
+│           StartPythonBackend.png
+│           UnblockWindows.png
+│           UpdateCitations.png
+│           WordbotDemo_1min.mp4
+│           WordbotRibbon.png
+│           ZoteroResearch.png
+│           ZotseekMCPServer.png
 ├───Extras
 │   │   ExampleContentMarkdown.md                      # Sample markdown content for testing
 │   │   TestPrompts.txt                                # Collection of test prompts for LLM workflows
+│   │
+│   ├───macOS
+│   │       WordbotCurl.scpt                           # AppleScript for curl commands on macOS
 │   │
 │   └───Media                                          # Image assets and demo video for Readme.md
 │           FormatMarkdownButton.png                   # Screenshot: Markdown formatting button
@@ -19,31 +47,38 @@ Wordbot/
 │           ZoteroResearch.png                         # Screenshot: Zotero research panel
 │
 ├───Powershell
+│   │   BuildAllEditions.ps1                           # Build script for all template editions
 │   │   config.psd1                                    # PowerShell module configuration and settings
 │   │   docLiveUpdateMacros.ps1                        # Updates VBA macros in the open Word template
 │   │   installWordBotTemplate.ps1                     # Main installation script for Word template deployment
-│   │   Readme.md                                      # PowerShell script usage documentation
+│   │   Run_BuildAllEditions.vbs                       # Silent VBS launcher for BuildAllEditions.ps1
 │   │   Run_docLiveUpdateMacros.vbs                    # Silent VBS launcher for docLiveUpdateMacros.ps1
 │   │   Run_installWordBotTemplate.vbs                 # Silent VBS launcher for installWordBotTemplate.ps1
 │   │
 │   ├───build
-│   │       Wordbot.dotm                               # Precompiled Word template (.dotm) for manual install
+│   │       Wordbot_LLM.dotm                           # Precompiled template with LLM features
+│   │       Wordbot_Markdown.dotm                      # Precompiled template with Markdown features
+│   │       Wordbot_Research.dotm                      # Precompiled template with Research features
 │   │
 │   ├───Module
 │   │       Wordbot.psm1                               # PowerShell module entry point for setup and management
 │   │
 │   └───Resources
-│       │   WordbotRibbon.xml                          # Custom Office Ribbon XML definition for Wordbot UI
+│       ├───RibbonXML
+│       │       WordbotRibbon_LLM.xml                  # Ribbon XML for LLM edition
+│       │       WordbotRibbon_Markdown.xml             # Ribbon XML for Markdown edition
+│       │       WordbotRibbon_Research.xml             # Ribbon XML for Research edition
 │       │
 │       └───WordVBAmacros                              # VBA modules powering Wordbot functionality
 │               aPythonTask.bas                        # Communicates with Python server for LLM and Zotseek
+│               aWordbotCommonFunctions.bas            # Shared utility functions
 │               aWordbotJsonParser.bas                 # Lightweight JSON parser for API responses
-│               aWordbotRibbonBindkeys.bas             # Keyboard shortcut bindings
-│               aWordbotRibbonBtnCallbacksXML.bas      # Ribbon UI callback functions
-│               aWordbotRibbonBtnFunctions.bas         # Button execution logic
+│               aWordbotRibbonKeytip.bas               # Keyboard shortcut and keytip definitions
+│               aWordbotRibbonLLMFunctions.bas         # LLM-specific ribbon callback functions
 │               aWordbot_Main.bas                      # Main LLM workflow: send requests, receive responses
 │               aWordbot_Research.bas                  # Research workflow: search Zotero via Zotseek
 │               aWordbot_ResearchCitation.bas          # Citation and reference injection from Zotero
+│               HeadingNumbers.bas                     # Automatic heading numbering
 │               MarkdownCleanup.bas                    # Text cleanup and whitespace normalization
 │               MarkdownCodeblock.bas                  # Code block formatting and syntax styling
 │               MarkdownHeadersStyle.bas               # Heading hierarchy styling (H1 through H6)
@@ -55,7 +90,7 @@ Wordbot/
 │               MarkdownUnicode.bas                    # Special character and symbol handling
 │               Markdown_Main.bas                      # Main Markdown parsing and conversion pipeline
 │
-└───PythonServer                                        # Local Flask backend for LLM and Zotero operations
+└───Python
     │   main.py                                         # Server entry point, route registration, Flask app
     │   prompts.py                                      # Prompt templates and system instructions for LLM
     │   requirements.txt                                # Python package dependencies

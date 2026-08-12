@@ -5,10 +5,11 @@
 .DESCRIPTION
     This script automates the building of all three Wordbot template editions.
     It calls installWordBotTemplate.ps1 for each edition with the specified parameters.
-    The script supports selective building, Python path updates, force mode, error handling, and logging.
+    The script supports selective building, Python path updates, personal information removal, force mode, error handling, and logging.
 
     When run without any parameters (e.g., F5 in VSCode), it defaults to:
     - Force mode enabled (overwrites existing files without prompting)
+    - RemovePersonalInfo enabled (strips metadata/personal info on save)
     - ContinueOnError enabled (continues building remaining editions even if one fails)
     - Silent mode enabled (minimal console output)
     - All three editions are built
@@ -20,6 +21,10 @@
 .PARAMETER UpdatePythonPaths
     If specified, updates Python executable and server paths in the VBA code.
     If omitted, keeps existing Python paths (faster for routine builds).
+
+.PARAMETER RemovePersonalInfo
+    Strips personal metadata (author details, document properties) from the built templates.
+    Default: $true when running without parameters, otherwise $false
 
 .PARAMETER Force
     If specified, forces overwrite of existing files without prompting.
@@ -42,11 +47,15 @@
 
 .EXAMPLE
     .\BuildAllEditions.ps1
-    Builds all three editions with default debug settings: Force, ContinueOnError, and Silent are enabled.
+    Builds all three editions with default debug settings: Force, RemovePersonalInfo, ContinueOnError, and Silent are enabled.
 
 .EXAMPLE
     .\BuildAllEditions.ps1 -UpdatePythonPaths
-    Builds all three editions, updates Python paths, with debug defaults (Force, ContinueOnError, Silent).
+    Builds all three editions, updates Python paths, with debug defaults (Force, RemovePersonalInfo, ContinueOnError, Silent).
+
+.EXAMPLE
+    .\BuildAllEditions.ps1 -RemovePersonalInfo:$false
+    Builds all editions but retains personal information/metadata in the generated documents.
 
 .EXAMPLE
     .\BuildAllEditions.ps1 -Editions "LLM", "Research"
@@ -73,8 +82,8 @@
     Builds all editions with full console output and everything logged to build.log.
 
 .EXAMPLE
-    .\BuildAllEditions.ps1 -Editions "Markdown","LLM" -UpdatePythonPaths -Force -ContinueOnError -Silent -LogPath "build_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
-    Full automation: builds Markdown and LLM with Python updates, forces overwrite, continues on errors, silent console, timestamped log.
+    .\BuildAllEditions.ps1 -Editions "Markdown","LLM" -UpdatePythonPaths -RemovePersonalInfo -Force -ContinueOnError -Silent -LogPath "build_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+    Full automation: builds Markdown and LLM with Python updates, strips personal info, forces overwrite, continues on errors, silent console, timestamped log.
 
 .LINK
     .\installWordBotTemplate.ps1
@@ -88,6 +97,7 @@
 
     Default behavior when run without parameters (F5 in VSCode):
     - Force: enabled
+    - RemovePersonalInfo: enabled
     - ContinueOnError: enabled
     - Silent: enabled
     - All three editions are built
@@ -101,6 +111,7 @@ param(
     [string[]]$Editions = @("Markdown", "LLM", "Research"),
     
     [switch]$UpdatePythonPaths,
+    [switch]$RemovePersonalInfo,
     [switch]$Force,
     [switch]$ContinueOnError,
     [switch]$Silent,
@@ -109,6 +120,7 @@ param(
 
 # Default when running as script when running in VScode. 
 if (-not $PSBoundParameters.ContainsKey('Force')) { $Force = $true }
+if (-not $PSBoundParameters.ContainsKey('RemovePersonalInfo')) { $RemovePersonalInfo = $true }
 if (-not $PSBoundParameters.ContainsKey('ContinueOnError')) { $ContinueOnError = $true }
 if ($PSBoundParameters.Count -eq 0) { Clear-Host }
 
@@ -149,6 +161,7 @@ Write-Log "" -AlwaysShow
 Write-Log "Build Configuration:" "Yellow" -AlwaysShow
 Write-Log "  Editions: $($Editions -join ', ')" "Gray" -AlwaysShow
 Write-Log "  Update Python Paths: $UpdatePythonPaths" "Gray" -AlwaysShow
+Write-Log "  Remove Personal Info: $RemovePersonalInfo" "Gray" -AlwaysShow
 Write-Log "  Force mode: $Force" "Gray" -AlwaysShow
 Write-Log "  Continue on error: $ContinueOnError" "Gray" -AlwaysShow
 Write-Log "  Silent mode: $Silent" "Gray" -AlwaysShow
@@ -167,18 +180,16 @@ foreach ($edition in $Editions) {
         # Non-silent: show installer output
         if ($Silent) {
             # Silent: suppress all installer output
-            if ($UpdatePythonPaths) {
-                & $installerScript -Edition $edition -UpdatePythonPaths -Force:$Force *>$null
-            } else {
-                & $installerScript -Edition $edition -UpdatePythonPaths:$false -Force:$Force *>$null
-            }
+            & $installerScript -Edition $edition `
+                              -UpdatePythonPaths:$UpdatePythonPaths `
+                              -RemovePersonalInfo:$RemovePersonalInfo `
+                              -Force:$Force *>$null
         } else {
             # Non-silent: show everything with colors
-            if ($UpdatePythonPaths) {
-                & $installerScript -Edition $edition -UpdatePythonPaths -Force:$Force
-            } else {
-                & $installerScript -Edition $edition -UpdatePythonPaths:$false -Force:$Force
-            }
+            & $installerScript -Edition $edition `
+                              -UpdatePythonPaths:$UpdatePythonPaths `
+                              -RemovePersonalInfo:$RemovePersonalInfo `
+                              -Force:$Force
         }
         
         $exitCode = $LASTEXITCODE
