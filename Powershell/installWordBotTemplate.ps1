@@ -115,6 +115,7 @@ param (
     [ValidateSet("Markdown", "LLM", "Research")]
     [string]$Edition,
     [switch]$UpdatePythonPaths,
+    [switch]$RemovePersonalInfo,
     [switch]$Force
 )
 
@@ -152,7 +153,7 @@ trap {
 }
 
 # Default when running as script when running in VScode. 
-if (-not $PSBoundParameters.ContainsKey('Edition')) { $Edition = "Research" }
+if (-not $PSBoundParameters.ContainsKey('Edition')) { $Edition = "Markdown" }
 if (-not $PSBoundParameters.ContainsKey('Force')) { $Force = $false }
 if (-not $PSBoundParameters.ContainsKey('RemovePersonalInfo')) { $RemovePersonalInfo = $false }
 # Default to updating Python paths when running the script directly

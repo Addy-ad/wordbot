@@ -542,6 +542,7 @@ function Save-Document {
     $dismissJob = $null
     try {
         if ($RemovePersonalInfo) {
+            Write-Host "    - Removing personal info" -ForegroundColor Yellow
             $Document.RemovePersonalInformation = $true
             if ($WordPID -gt 0) {
                 $dismissJob = Start-DocumentInspectorDismissJob -WordPID $WordPID
@@ -553,6 +554,7 @@ function Save-Document {
         
         if ($dismissJob) {
             Stop-DocumentInspectorJob -Job $dismissJob
+            Write-Host "    - Removing personal info: Success" -ForegroundColor Green
         }
         return $true
     } catch {
