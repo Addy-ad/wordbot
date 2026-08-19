@@ -12,10 +12,10 @@ This guide covers installing Wordbot on Windows.
 
 ## Step 1: Download Pre-built Templates
 
-The templates are located in `Powershell/build/`:
-- `Wordbot_Markdown.dotm` - Core Markdown formatting features
-- `Wordbot_LLM.dotm` - Markdown + LLM integration
-- `Wordbot_Research.dotm` - Markdown + LLM + Zotero research features
+The pre-built edition-wise templates are located in [Powershell/build/](../Powershell/build)
+- [Wordbot_Markdown.dotm](../Powershell/build/Wordbot_Markdown.dotm) - Core Markdown formatting features
+- [Wordbot_LLM.dotm](../Powershell/build/Wordbot_LLM.dotm) - Markdown + LLM integration
+- [Wordbot_Research.dotm](../Powershell/build/Wordbot_Research.dotm) - Markdown + LLM + Zotero research features
 
 ## Step 2: Unblock the Template File
 
